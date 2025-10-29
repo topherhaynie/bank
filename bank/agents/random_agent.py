@@ -1,55 +1,74 @@
-"""
-Random Agent
+"""Random Agent for BANK! dice game.
 
-A simple agent that selects actions randomly. Useful for testing and as a baseline.
+A simple agent that randomly decides whether to bank or pass.
+Useful for testing, baselines, and as a reference implementation.
 """
+
+from __future__ import annotations
 
 import random
-from typing import Dict, Any, Tuple
-from bank.game.state import GameState
-from bank.agents.base import BaseAgent
+
+from bank.agents.base import Action, Agent, Observation
 
 
-class RandomAgent(BaseAgent):
+class RandomAgent(Agent):
+    """Agent that randomly chooses to bank or pass.
+
+    This agent makes decisions by flipping a coin (50/50 chance) each time
+    it's asked to act. It respects the can_bank constraint and will only
+    pass if banking is not allowed.
+
+    Useful as:
+    - A baseline for comparing more sophisticated strategies
+    - A testing tool for the game engine
+    - A reference implementation of the Agent interface
+
     """
-    Agent that randomly selects from valid actions.
-    
-    Useful as a baseline and for testing game mechanics.
-    """
-    
-    def __init__(self, player_id: int, name: str = "RandomBot", seed: int = None):
-        """
-        Initialize the random agent.
-        
+
+    def __init__(
+        self,
+        player_id: int,
+        name: str | None = None,
+        seed: int | None = None,
+        bank_probability: float = 0.5,
+    ) -> None:
+        """Initialize the random agent.
+
         Args:
-            player_id: The player ID this agent controls
-            name: The agent's name
-            seed: Random seed for reproducibility (optional)
+            player_id: Unique identifier for this player (0-based)
+            name: Optional name for display purposes
+            seed: Optional random seed for reproducibility
+            bank_probability: Probability of banking when allowed (0.0 to 1.0)
+
         """
-        super().__init__(player_id, name)
+        super().__init__(player_id, name or f"RandomBot-{player_id}")
         self.rng = random.Random(seed)
-    
-    def select_action(self, game_state: GameState, valid_actions: list) -> Tuple[str, Dict[str, Any]]:
-        """
-        Randomly select an action from valid actions.
-        
+        self.bank_probability = max(0.0, min(1.0, bank_probability))
+
+    def act(self, observation: Observation) -> Action:
+        """Randomly decide to bank or pass.
+
         Args:
-            game_state: Current game state
-            valid_actions: List of valid action names
-            
+            observation: Current game state information
+
         Returns:
-            Tuple of (action_name, action_parameters)
+            "bank" with probability bank_probability if can_bank is True,
+            otherwise "pass"
+
         """
-        if not valid_actions:
-            return ("pass", {})
-        
-        action = self.rng.choice(valid_actions)
-        params = {}
-        
-        # Add random parameters for actions that need them
-        player = game_state.players[self.player_id]
-        
-        if action in ["play_card", "bank_card"] and player.hand:
-            params["card_idx"] = self.rng.randint(0, len(player.hand) - 1)
-        
-        return (action, params)
+        # Can't bank if already banked
+        if not observation["can_bank"]:
+            return "pass"
+
+        # Random decision based on bank_probability
+        if self.rng.random() < self.bank_probability:
+            return "bank"
+        return "pass"
+
+    def reset(self) -> None:
+        """Reset agent state for a new game.
+
+        The RNG state is preserved across games for reproducibility.
+
+        """
+        # RNG maintains its state for reproducibility across games
