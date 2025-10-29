@@ -9,14 +9,16 @@ Phases & tasks
 
 Phase 1 — Build the game engine (priority: high)
 - Goal: Implement a correct, well-tested deterministic engine for the dice-based BANK! rules.
+- Status: In Progress (1/4 tasks complete)
 - Tasks & deliverables:
-  1. `GameState` dataclasses: `bank/game/state.py` — typed models for game, round, and player state plus `to_dict`/`from_dict` serialization.
+  1. ✅ **COMPLETE** `GameState` dataclasses: `bank/game/state.py` — typed models for game, round, and player state plus `to_dict`/`from_dict` serialization. Includes `PlayerState`, `RoundState`, and `GameState` with full serialization support and helper methods. Comprehensive test suite with 30 tests and 100% coverage in `tests/game/test_state.py`.
   2. Roll & bank mechanics: `bank/game/engine.py` — 2d6 roll logic, bank accumulation, special first-3-roll rules for sevens and doubles, deterministic RNG support.
   3. Decision polling loop: engine-level polling loop that notifies active players after each bank change and collects `bank`/`pass` responses (serializable, deterministic tie-breakers).
   4. Unit tests: `tests/game/test_engine.py` — tests for roll outcomes, bank updates, round termination, banking serialization, RNG seeding.
 
 Phase 2 — Agent API & baseline agents (priority: high)
 - Goal: Define and implement a stable agent interface and basic agents for testing and demos.
+- Status: Not Started (0/4 tasks complete)
 - Tasks & deliverables:
   1. Agent base API: `bank/agents/base.py` — `Agent` abstract class with `act(observation)` and `reset()`.
   2. Observation & action schema doc and types in `docs/`.
@@ -25,6 +27,7 @@ Phase 2 — Agent API & baseline agents (priority: high)
 
 Phase 3 — CLI & examples (priority: medium)
 - Goal: Make the game playable locally and provide examples for inspection and tournaments.
+- Status: Not Started (0/3 tasks complete)
 - Tasks & deliverables:
   1. CLI runner: `bank/cli/game_runner.py` and `bank/cli/main.py` — interactive play, timeouts for human input, and match configuration.
   2. Examples: `examples/inspect_game.py`, `examples/simple_agent.py`, `examples/tournament.py`.
@@ -32,6 +35,7 @@ Phase 3 — CLI & examples (priority: medium)
 
 Phase 4 — Training environment & DQN (priority: medium)
 - Goal: Provide a Gym-like environment wrapper and DQN training harness for learning agents.
+- Status: Not Started (0/3 tasks complete)
 - Tasks & deliverables:
   1. Environment wrapper: `bank/training/environment.py` — `reset()`, `step()`, observation flattening, action mask support, and episode termination semantics.
   2. DQN agent: `bank/training/dqn_agent.py` — basic DQN with replay buffer and epsilon-greedy policy.
@@ -39,6 +43,7 @@ Phase 4 — Training environment & DQN (priority: medium)
 
 Phase 5 — Testing, CI & quality (priority: high)
 - Goal: Ensure correctness, maintainability, and reproducible experiments.
+- Status: Not Started (0/3 tasks complete)
 - Tasks & deliverables:
   1. Unit & integration tests for engine, agents, and training code (expand `tests/`).
   2. Linting and type checks (e.g., `ruff`, `mypy`) configured in the project.
@@ -46,6 +51,7 @@ Phase 5 — Testing, CI & quality (priority: high)
 
 Phase 6 — Evaluation & improvements (priority: low)
 - Goal: Add tools for model comparison, tournaments, and experiment tracking.
+- Status: Not Started (0/2 tasks complete)
 - Tasks & deliverables:
   1. Tournament scripts, evaluation harness, and model comparison tooling.
   2. Optional integration with experiment tracking (Weights & Biases) for larger experiments.
@@ -71,8 +77,10 @@ How to update this plan
 
 Immediate next steps (recommended)
 ---------------------------------
-1. Implement `GameState` dataclasses and add basic unit tests for serialization.
-2. Implement roll/bank logic and add tests for the first-3-roll exceptions, doubles, and sevens.
-3. Implement the polling decision loop and a simple random/pass agent to validate integration.
+1. ✅ **COMPLETE** Implement `GameState` dataclasses and add basic unit tests for serialization.
+2. **NEXT** Implement roll/bank logic and add tests for the first-3-roll exceptions, doubles, and sevens (Phase 1 Task 2).
+3. Implement the polling decision loop and a simple random/pass agent to validate integration (Phase 1 Task 3).
 
-If you want, I can now start Phase 1 Task 1 (`GameState` dataclasses). I'll update the todo list and mark the appropriate subtasks as `in-progress` before coding.
+Progress log
+------------
+- 2025-10-29: Completed Phase 1 Task 1 - Implemented `PlayerState`, `RoundState`, and `GameState` dataclasses with full serialization support. Created comprehensive test suite (30 tests, 100% coverage). Ready to begin Phase 1 Task 2.
