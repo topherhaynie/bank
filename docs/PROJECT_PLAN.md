@@ -18,12 +18,13 @@ Phase 1 — Build the game engine (priority: high)
 
 Phase 2 — Agent API & baseline agents (priority: high)
 - Goal: Define and implement a stable agent interface and basic agents for testing and demos.
-- Status: Partially Complete (1/4 tasks complete)
+- Status: In Progress (4/5 tasks complete)
 - Tasks & deliverables:
   1. ✅ **COMPLETE** Agent base API: `bank/agents/base.py` — `Agent` abstract class with `act(observation)` and `reset()` methods.
-  2. Observation & action schema doc and types in `docs/`.
-  3. Baseline agents: `bank/agents/random_agent.py`, `bank/agents/rule_based.py`.
-  4. Agent tests: `tests/agents/test_agents.py` to validate integration with the engine.
+  2. ✅ **COMPLETE** Observation & action schema doc: `docs/AGENT_API.md` — Comprehensive documentation of `Observation` TypedDict (9 fields with descriptions, valid values, usage examples), `Action` Literal types ("bank"/"pass"), Agent interface implementation guide, common patterns, four complete example agents, testing guidelines, and debugging tips. Serves as the authoritative reference for agent developers.
+  3. ✅ **COMPLETE** RandomAgent: `bank/agents/random_agent.py` — Implements `Agent` interface with configurable `bank_probability` (default 0.5), supports seeded RNG for deterministic testing, respects `can_bank` constraint. Useful as baseline and testing tool.
+  4. ✅ **COMPLETE** Rule-based agents: `bank/agents/rule_based.py` — Five strategy agents implementing `Agent` interface: (1) `ThresholdAgent` - banks at fixed threshold; (2) `ConservativeAgent` - banks early with low thresholds to avoid risk; (3) `AggressiveAgent` - waits for high values, takes more risks; (4) `SmartAgent` - adaptive strategy considering roll count, active players, recent rolls, and bank value; (5) `AdaptiveAgent` - adjusts risk tolerance based on competitive position (leading/behind). All agents respect `can_bank` and demonstrate different strategic approaches.
+  5. Agent tests: `tests/agents/test_agents.py` to validate integration with the engine.
 
 Phase 3 — CLI & examples (priority: medium)
 - Goal: Make the game playable locally and provide examples for inspection and tournaments.
@@ -85,3 +86,7 @@ Progress log
 ------------
 - 2025-10-29: Completed Phase 1 Task 1 - Implemented `PlayerState`, `RoundState`, and `GameState` dataclasses with full serialization support. Created comprehensive test suite (30 tests, 100% coverage). Ready to begin Phase 1 Task 2.
 - 2025-10-29: Completed Phase 1 Task 2 - Implemented complete dice rolling and banking mechanics in `bank/game/engine.py`. All BANK! game rules properly implemented: normal rolls add sum, sevens in first 3 rolls add 70, sevens after first 3 end round, doubles in first 3 add sum, doubles after first 3 double the bank. Player banking, round management, and game end conditions fully functional. Refactored test suite from single large file into 5 focused test modules for better organization and maintainability. All 67 tests passing (37 engine tests + 30 state tests) with 90% engine coverage.
+- 2025-10-29: Completed Phase 1 Task 3 - Implemented decision polling loop with simultaneous and deterministic modes. Added comprehensive polling tests (14 tests). Total: 81 tests with 89% engine coverage.
+- 2025-10-29: Completed Phase 2 Task 2 - Created comprehensive `docs/AGENT_API.md` with complete documentation of Observation structure, Action types, implementation guide with best practices, four example agents, and testing guidelines.
+- 2025-10-29: Completed Phase 2 Task 3 - Implemented `RandomAgent` with configurable bank probability, seeded RNG support, and proper Agent interface implementation.
+- 2025-10-29: Completed Phase 2 Task 4 - Implemented five rule-based agents in `bank/agents/rule_based.py`: `ThresholdAgent` (fixed threshold), `ConservativeAgent` (risk-averse), `AggressiveAgent` (high-reward seeking), `SmartAgent` (context-aware with roll/player analysis), and `AdaptiveAgent` (competitive position-based). All agents implement Agent interface and demonstrate diverse strategic approaches.
