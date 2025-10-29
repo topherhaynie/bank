@@ -1,5 +1,13 @@
 Mission: Build BANK! as a playable CLI game with human and agent players
 
+⚠️ **AI Agent Quick Start**
+----------------------------
+**READ THESE FIRST** (in order):
+1. 📖 `docs/BASE_GAME_RULES.md` - Game rules (CRITICAL)
+2. 📋 `docs/PROJECT_PLAN.md` - Implementation status
+3. 🔧 `docs/CONVENTIONS.md` - Coding patterns (prevents common mistakes)
+4. 🏗️ `docs/ARCHITECTURE.md` - System design
+
 Purpose
 -------
 This repository implements BANK! — a turn-based card game — as a mini application with three main capabilities:
@@ -45,15 +53,39 @@ Observations about this repository (current state)
 
 Immediate next steps for contributors / coding agents
 ---------------------------------------------------
-1. Keep this mission file updated with high-level goals and milestones.
-2. Use `docs/ARCHITECTURE.md` and `docs/BASE_GAME_RULES.md` (created alongside this mission) as the canonical references when implementing game logic, agents, or training code.
-3. When changing the public API of the engine or agent interfaces, update docs and add unit tests in `tests/`.
-4. For ML experiments, provide reproducible configs in `config.example.json` and save model artifacts under a `models/` path (gitignored).
+1. **REQUIRED READING for AI Agents**: Before starting any work, read these documents in order:
+   - `docs/BASE_GAME_RULES.md` - Complete game rules and mechanics (CRITICAL for game logic)
+   - `docs/PROJECT_PLAN.md` - Phased implementation plan and current progress
+   - `docs/CONVENTIONS.md` - Code patterns, type hints, naming conventions, and common pitfalls
+   - `docs/ARCHITECTURE.md` - System design and component interactions
+   
+2. Keep this mission file updated with high-level goals and milestones.
+
+3. Use the docs as canonical references when implementing game logic, agents, or training code.
+
+4. When changing the public API of the engine or agent interfaces, update docs and add unit tests in `tests/`.
+
+5. For ML experiments, provide reproducible configs in `config.example.json` and save model artifacts under a `models/` path (gitignored).
+
+6. Follow the conventions in `docs/CONVENTIONS.md` for:
+   - Type hints (modern Python 3.10+ syntax)
+   - Import patterns (including TYPE_CHECKING for circular imports)
+   - State initialization patterns (use `_initialize_game()`, not `GameState.create()`)
+   - Agent interface patterns (two interfaces: `Agent` for dice game, `BaseAgent` for legacy)
+   - Testing patterns (organized by feature, deterministic with seeds)
 
 How to use this file
 --------------------
-- New chats with coding agents should start by reading `MISSION.md`, then `docs/ARCHITECTURE.md`, and `docs/BASE_GAME_RULES.md` to get up to speed.
-- The mission is intentionally concise; design details are in `docs/` and implementation examples live in `examples/`.
+- **For AI Agents**: Start every new chat by reading:
+  1. This `MISSION.md` file for project overview
+  2. `docs/BASE_GAME_RULES.md` for complete game mechanics
+  3. `docs/PROJECT_PLAN.md` for current implementation status
+  4. `docs/CONVENTIONS.md` for coding patterns and conventions
+  5. `docs/ARCHITECTURE.md` for system design
+  
+- **For Human Contributors**: The mission is intentionally concise; design details are in `docs/` and implementation examples live in `examples/`.
+
+- **When in Doubt**: Check `docs/CONVENTIONS.md` for patterns like initialization, type hints, imports, and common pitfalls to avoid.
 
 Contact / Contributors
 ----------------------
