@@ -1,121 +1,252 @@
-"""
-Game Runner
+"""Game Runner.
 
-Orchestrates game execution with multiple agents.
+Orchestrates game execution with multiple agents for the BANK! dice game.
 """
+
+import time
 
 import click
-import time
-from typing import List
+
+from bank.agents.base import Agent
 from bank.game.engine import BankGame
-from bank.agents.base import BaseAgent
-from bank.cli.human_player import HumanPlayer
 
 
 class GameRunner:
+    """Manages game execution with multiple agents.
+
+    Handles game flow display, agent coordination, and result presentation.
     """
-    Manages game execution with multiple agents.
-    
-    Handles turn order, agent communication, and game flow.
-    """
-    
-    def __init__(self, game: BankGame, agents: List[BaseAgent], delay: float = 0.5):
-        """
-        Initialize the game runner.
-        
+
+    def __init__(
+        self,
+        game: BankGame,
+        agents: list[Agent],
+        delay: float = 0.5,
+        *,
+        verbose: bool = True,
+    ) -> None:
+        """Initialize the game runner.
+
         Args:
             game: The game instance
             agents: List of agents (one per player)
-            delay: Delay between AI turns for visibility (seconds)
+            delay: Delay between displays for readability (seconds)
+            verbose: Whether to display detailed game flow
+
+        Raises:
+            ValueError: If number of agents doesn't match number of players
+
         """
+        if len(agents) != game.state.num_players:
+            msg = "Number of agents must match number of players"
+            raise ValueError(msg)
+
         self.game = game
         self.agents = agents
         self.delay = delay
-        
-        if len(agents) != game.state.num_players:
-            raise ValueError("Number of agents must match number of players")
-    
-    def run(self) -> None:
-        """Run the game to completion."""
-        # Notify agents of game start
+        self.verbose = verbose
+
+    def run(self) -> dict[int, int]:
+        """Run the game to completion.
+
+        Returns:
+            Dictionary mapping player_id to final score
+
+        """
+        self._display_header()
+
+        # Reset all agents
         for agent in self.agents:
-            agent.on_game_start(self.game.state)
-        
-        click.echo("\nGame starting!")
+            agent.reset()
+
+        # Run the game using the engine's play_game method
+        # We'll hook into the game flow by displaying state periodically
+        self._run_with_display()
+
+        return self._display_results()
+
+    def _display_header(self) -> None:
+        """Display game start header."""
+        click.echo("\n" + "=" * 60)
+        click.echo("🎲 BANK! DICE GAME 🎲")
+        click.echo("=" * 60)
+        click.echo(f"\nPlayers: {self.game.state.num_players}")
+        click.echo(f"Rounds: {self.game.state.total_rounds}")
+        click.echo("\nPlayers:")
+        for i, player in enumerate(self.game.state.players):
+            agent_type = type(self.agents[i]).__name__
+            click.echo(f"  {i + 1}. {player.name} ({agent_type})")
         click.echo()
-        
-        turn_count = 0
-        max_turns = 1000  # Prevent infinite loops
-        
-        while not self.game.is_game_over() and turn_count < max_turns:
-            self._run_turn()
-            turn_count += 1
-        
-        self._display_results()
-    
-    def _run_turn(self) -> None:
-        """Execute a single turn."""
-        current_idx = self.game.state.current_player_idx
-        agent = self.agents[current_idx]
-        
-        # Notify agent of turn start
-        agent.on_turn_start(self.game.state)
-        
-        # Add delay for AI agents (not for humans)
-        if not isinstance(agent, HumanPlayer) and self.delay > 0:
+
+        if self.delay > 0:
             time.sleep(self.delay)
-        
-        # Get valid actions
-        valid_actions = self.game.get_valid_actions()
-        
-        if not valid_actions:
-            click.echo(f"{agent.name} has no valid actions. Skipping turn.")
-            self.game.state.current_player_idx = (
-                (self.game.state.current_player_idx + 1) % self.game.state.num_players
-            )
+
+    def _run_with_display(self) -> None:
+        """Run the game with visual display of progress."""
+        # Simply use the engine's play_game method
+        # The engine handles all the game logic correctly
+        self.game.play_game()
+
+        # NOTE: Currently runs game silently and shows only final results
+        # Future enhancement: add display hooks to engine for real-time updates
+
+    def _display_round_start(self, round_num: int) -> None:
+        """Display round start banner.
+
+        Args:
+            round_num: The round number starting
+
+        """
+        if self.verbose:
+            click.echo("\n" + "🎲" * 30)
+            click.echo(f"ROUND {round_num}")
+            click.echo("🎲" * 30)
+
+            if self.delay > 0:
+                time.sleep(self.delay * 0.5)
+
+    def _play_round_with_display(self) -> None:
+        """Play a single round with display of dice rolls and decisions."""
+        while not self.game.is_round_over():
+            # Roll dice
+            self.game.roll_dice()
+
+            if self.verbose:
+                self._display_roll()
+
+            if self.delay > 0:
+                time.sleep(self.delay)
+
+            # Check if round ended from roll (e.g., seven after roll 3)
+            if self.game.is_round_over():
+                break
+
+            # Poll decisions (returns list of player IDs who banked)
+            banked_players = self.game.poll_decisions()
+
+            if self.verbose:
+                self._display_decisions(banked_players)
+
+            if self.delay > 0:
+                time.sleep(self.delay)
+
+    def _display_roll(self) -> None:
+        """Display the most recent dice roll."""
+        if not self.game.state.current_round:
             return
-        
-        # Get action from agent
-        action, params = agent.select_action(self.game.state, valid_actions)
-        
-        # Display action for non-human players
-        if not isinstance(agent, HumanPlayer):
-            click.echo(f"{agent.name} performs: {action} {params}")
-        
-        # Execute action
-        success = self.game.take_action(action, **params)
-        
-        if not success:
-            click.echo(f"Warning: Action {action} failed for {agent.name}")
-        
-        # Notify agent of turn end
-        agent.on_turn_end(self.game.state)
-    
-    def _display_results(self) -> None:
-        """Display final game results."""
-        click.echo("\n" + "=" * 50)
-        click.echo("GAME OVER")
-        click.echo("=" * 50)
-        click.echo()
-        
-        # Display final scores
-        click.echo("Final Scores:")
+
+        roll = self.game.state.current_round.last_roll
+        if not roll:
+            return
+
+        die1, die2 = roll
+        total = die1 + die2
+        roll_num = self.game.state.current_round.roll_count
+        bank = self.game.state.current_round.current_bank
+
+        click.echo(f"\n🎲 Roll #{roll_num}: [{die1}] [{die2}] = {total}")
+
+        # Add commentary
+        if total == 7:  # noqa: PLR2004
+            if roll_num <= 3:  # noqa: PLR2004
+                click.echo("   💰 SEVEN! Added 70 points to bank")
+            else:
+                click.echo("   💥 SEVEN! Round over - bank lost!")
+        elif die1 == die2:
+            if roll_num <= 3:  # noqa: PLR2004
+                click.echo(f"   🎯 DOUBLES! Added {total} points")
+            else:
+                click.echo("   🎯 DOUBLES! Bank doubled!")
+
+        click.echo(f"   Bank now: {bank} points")
+
+    def _display_decisions(self, banked_players: list[int]) -> None:
+        """Display player decisions.
+
+        Args:
+            banked_players: List of player IDs who banked
+
+        """
+        if not self.game.state.current_round:
+            return
+
+        # Get all players who were active before this decision round
+        # Note: banked_players have already been removed from active_player_ids
+        active_before = self.game.state.current_round.active_player_ids | set(banked_players)
+
+        if not active_before:
+            return
+
+        click.echo("\n📋 Player Decisions:")
+
+        # Show who banked
+        for player_id in sorted(banked_players):
+            player = self.game.state.players[player_id]
+            click.echo(f"   💰 {player.name}: BANK")
+
+        # Show who passed (those still active after decisions)
+        for player_id in sorted(self.game.state.current_round.active_player_ids):
+            player = self.game.state.players[player_id]
+            click.echo(f"   ➡️  {player.name}: PASS")
+
+    def _display_round_end(self) -> None:
+        """Display end of round summary."""
+        if not self.verbose or not self.game.state.current_round:
+            return
+
+        click.echo("\n" + "-" * 60)
+        click.echo("Round Complete!")
+        click.echo("\nCurrent Scores:")
+
+        # Sort by score descending
         sorted_players = sorted(
             self.game.state.players,
             key=lambda p: p.score,
-            reverse=True
+            reverse=True,
         )
-        
+
+        for player in sorted_players:
+            click.echo(f"  {player.name}: {player.score} points")
+
+        click.echo("-" * 60)
+
+        if self.delay > 0:
+            time.sleep(self.delay)
+
+    def _display_results(self) -> dict[int, int]:
+        """Display final game results.
+
+        Returns:
+            Dictionary mapping player_id to final score
+
+        """
+        click.echo("\n" + "=" * 60)
+        click.echo("🏆 GAME OVER 🏆")
+        click.echo("=" * 60)
+
+        # Sort players by score
+        sorted_players = sorted(
+            self.game.state.players,
+            key=lambda p: p.score,
+            reverse=True,
+        )
+
+        click.echo("\nFinal Standings:")
         for rank, player in enumerate(sorted_players, 1):
-            marker = " 🏆" if rank == 1 else ""
-            click.echo(f"  {rank}. {player.name}: {player.score} points{marker}")
-        
-        # Notify agents of game end
-        winner = self.game.get_winner()
-        if winner:
-            click.echo(f"\nWinner: {winner.name}!")
-            for agent in self.agents:
-                won = agent.player_id == winner.player_id
-                agent.on_game_end(self.game.state, won)
+            medal = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else "  "  # noqa: PLR2004
+            click.echo(f"  {medal} {rank}. {player.name}: {player.score} points")
+
+        # Find winner(s)
+        max_score = sorted_players[0].score
+        winners = [p for p in sorted_players if p.score == max_score]
+
+        if len(winners) == 1:
+            click.echo(f"\n🎉 Winner: {winners[0].name}! 🎉")
         else:
-            click.echo("\nGame ended in a draw!")
+            winner_names = ", ".join(w.name for w in winners)
+            click.echo(f"\n🤝 Tie between: {winner_names}")
+
+        click.echo()
+
+        # Return final scores
+        return {p.player_id: p.score for p in self.game.state.players}

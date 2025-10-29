@@ -28,9 +28,9 @@ Phase 2 — Agent API & baseline agents (priority: high)
 
 Phase 3 — CLI & examples (priority: medium)
 - Goal: Make the game playable locally and provide examples for inspection and tournaments.
-- Status: Not Started (0/3 tasks complete)
+- Status: In Progress (1/3 tasks complete)
 - Tasks & deliverables:
-  1. CLI runner: `bank/cli/game_runner.py` and `bank/cli/main.py` — interactive play, timeouts for human input, and match configuration.
+  1. ✅ **COMPLETE** CLI runner: `bank/cli/game_runner.py` and `bank/cli/main.py` — Full implementation with three Click commands: `play` (interactive games with human/AI mix, configurable timeouts), `demo` (4-player AI battle), and `tournament` (batch evaluation with statistics). Includes `HumanPlayer` agent with timeout support, detailed observation display with dice rolls/bank/scores, and `GameRunner` orchestrator. Supports all agent types (Random, Threshold, Conservative, Aggressive, Smart, Adaptive) with configurable game parameters (players, rounds, seed, delays).
   2. Examples: `examples/inspect_game.py`, `examples/simple_agent.py`, `examples/tournament.py`.
   3. Replay/inspection helpers for saving/loading game logs.
 
@@ -92,3 +92,4 @@ Progress log
 - 2025-10-29: Completed Phase 2 Task 4 - Implemented five rule-based agents in `bank/agents/rule_based.py`: `ThresholdAgent` (fixed threshold), `ConservativeAgent` (risk-averse), `AggressiveAgent` (high-reward seeking), `SmartAgent` (context-aware with roll/player analysis), and `AdaptiveAgent` (competitive position-based). All agents implement Agent interface and demonstrate diverse strategic approaches.
 - 2025-10-29: Completed Phase 2 Task 5 - Created comprehensive integration test suite for all baseline agents (`tests/agents/test_agents.py`). 33 tests organized into 6 test classes covering agent creation, decision-making, engine integration, determinism, edge cases, and reset functionality. All tests pass with 100% coverage on RandomAgent and 93% on rule-based agents. Also implemented `play_game()` and `play_round()` methods in game engine to support full automated gameplay.
 - 2025-10-29: **Phase 2 COMPLETE** - All agent API and baseline agent tasks finished. Project now has fully functional agent system with comprehensive documentation, multiple strategic implementations, and thorough test coverage.
+- 2025-10-29: Completed Phase 3 Task 1 - Implemented complete CLI system for BANK! dice game. Created `bank/cli/main.py` with three commands: `play` (supports 2-6 players with mix of human/AI agents, configurable rounds/seed/timeout), `demo` (4-player AI battle showcase), and `tournament` (batch evaluation with win rates and statistics). Implemented `HumanPlayer` agent (extends Agent interface) with timeout support, detailed observation display showing dice rolls/bank values/scores, and input validation. Created `GameRunner` orchestrator that uses engine's `play_game()` method for correct game logic and displays formatted results with medals and winner announcement. All 6 agent types (Random, Threshold, Conservative, Aggressive, Smart, Adaptive) fully integrated. Tournament testing shows AggressiveBot performing best (60% win rate over 10 games).

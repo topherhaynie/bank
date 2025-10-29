@@ -1,99 +1,191 @@
-"""
-Human Player Agent
+"""Human Player Agent.
 
-Interactive agent for human players via CLI.
+Interactive agent for human players via CLI for the BANK! dice game.
 """
+
+import signal
+from collections.abc import Generator
+from contextlib import contextmanager
 
 import click
-from typing import Dict, Any, Tuple
-from bank.game.state import GameState
-from bank.agents.base import BaseAgent
+
+from bank.agents.base import Action, Agent, Observation
+
+# Constants for dice game rules
+SEVEN_VALUE = 7
+SPECIAL_ROLL_THRESHOLD = 3
 
 
-class HumanPlayer(BaseAgent):
+class InputTimeoutError(Exception):
+    """Raised when user input times out."""
+
+
+@contextmanager
+def timeout(seconds: int | None) -> Generator[None, None, None]:
+    """Context manager for timing out user input.
+
+    Args:
+        seconds: Number of seconds before timeout, or None for no timeout
+
+    Raises:
+        InputTimeoutError: If the operation times out
+
     """
-    Interactive human player that prompts for input via command line.
+    if seconds is None:
+        yield
+        return
+
+    def timeout_handler(_signum: int, _frame: object) -> None:
+        msg = "Input timed out"
+        raise InputTimeoutError(msg)
+
+    # Set the signal handler and alarm
+    old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(seconds)
+
+    try:
+        yield
+    finally:
+        # Cancel the alarm and restore old handler
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)
+
+
+class HumanPlayer(Agent):
+    """Interactive human player that prompts for input via command line.
+
+    Implements the Agent interface for the BANK! dice game, displaying
+    game state and prompting for bank/pass decisions.
     """
-    
-    def __init__(self, player_id: int, name: str = "Human"):
-        """
-        Initialize the human player.
-        
+
+    def __init__(
+        self,
+        player_id: int,
+        name: str = "Human",
+        timeout_seconds: int | None = None,
+        *,
+        verbose: bool = True,
+    ) -> None:
+        """Initialize the human player.
+
         Args:
             player_id: The player ID this agent controls
             name: The player's name
+            timeout_seconds: Optional timeout for input in seconds (None = no timeout)
+            verbose: Whether to display detailed game state
+
         """
         super().__init__(player_id, name)
-    
-    def select_action(self, game_state: GameState, valid_actions: list) -> Tuple[str, Dict[str, Any]]:
-        """
-        Prompt the human player to select an action.
-        
+        self.timeout_seconds = timeout_seconds
+        self.verbose = verbose
+
+    def act(self, observation: Observation) -> Action:
+        """Prompt the human player to select bank or pass.
+
         Args:
-            game_state: Current game state
-            valid_actions: List of valid action names
-            
+            observation: Current game state observation
+
         Returns:
-            Tuple of (action_name, action_parameters)
+            Action: either "bank" or "pass"
+
+        Raises:
+            InputTimeoutError: If input times out
+
         """
-        player = game_state.players[self.player_id]
-        
+        if self.verbose:
+            self._display_observation(observation)
+
+        # Build action options
+        actions: list[Action] = ["pass"]
+        if observation["can_bank"]:
+            actions.insert(0, "bank")  # Bank first if available
+
+        # Display options
         click.echo("\n" + "=" * 50)
-        click.echo(f"{self.name}'s Turn")
+        click.echo(f"{self.name}'s Decision")
         click.echo("=" * 50)
-        self._display_game_state(game_state)
-        
-        # Display valid actions
-        click.echo("\nValid actions:")
-        for idx, action in enumerate(valid_actions, 1):
-            click.echo(f"  {idx}. {action}")
-        
-        # Get action selection
+        click.echo("\nAvailable actions:")
+        for idx, action in enumerate(actions, 1):
+            click.echo(f"  {idx}. {action.upper()}")
+
+        # Get selection with optional timeout
+        try:
+            with timeout(self.timeout_seconds):
+                choice = self._get_action_choice(len(actions))
+                action = actions[choice - 1]
+                click.echo(f"\n{self.name} chose: {action.upper()}")
+                return action
+        except InputTimeoutError:
+            # Default to pass on timeout
+            click.echo(f"\n⏱️  Time's up! {self.name} defaults to PASS")
+            return "pass"
+
+    def _get_action_choice(self, num_actions: int) -> int:
+        """Get valid action choice from user.
+
+        Args:
+            num_actions: Number of available actions
+
+        Returns:
+            1-indexed choice number
+
+        """
         while True:
             try:
-                choice = click.prompt(
-                    "\nSelect action",
-                    type=click.IntRange(1, len(valid_actions))
+                return click.prompt(
+                    f"\nSelect action (1-{num_actions})",
+                    type=click.IntRange(1, num_actions),
                 )
-                action = valid_actions[choice - 1]
-                break
-            except (ValueError, IndexError):
+            except (ValueError, click.Abort):
                 click.echo("Invalid choice. Please try again.")
-        
-        # Get action parameters
-        params = {}
-        if action in ["play_card", "bank_card"] and player.hand:
-            click.echo("\nYour hand:")
-            for idx, card in enumerate(player.hand):
-                click.echo(f"  {idx + 1}. Card value: {card}")
-            
-            while True:
-                try:
-                    card_choice = click.prompt(
-                        "Select card",
-                        type=click.IntRange(1, len(player.hand))
-                    )
-                    params["card_idx"] = card_choice - 1
-                    break
-                except (ValueError, IndexError):
-                    click.echo("Invalid choice. Please try again.")
-        
-        return (action, params)
-    
-    def _display_game_state(self, game_state: GameState) -> None:
-        """Display current game state to the player."""
-        click.echo(f"\nRound: {game_state.round_number}")
-        click.echo(f"Deck: {len(game_state.deck)} cards remaining")
-        click.echo(f"Discard pile: {len(game_state.discard_pile)} cards")
-        
-        click.echo("\nPlayers:")
-        for p in game_state.players:
-            marker = " <-- YOU" if p.player_id == self.player_id else ""
-            click.echo(
-                f"  {p.name}: Score={p.score}, "
-                f"Hand={len(p.hand)}, Bank={len(p.bank)}{marker}"
-            )
-        
-        player = game_state.players[self.player_id]
-        click.echo(f"\nYour hand: {player.hand}")
-        click.echo(f"Your bank: {player.bank}")
+
+    def _display_observation(self, obs: Observation) -> None:
+        """Display current game observation to the player.
+
+        Args:
+            obs: The observation to display
+
+        """
+        click.echo("\n" + "=" * 60)
+        click.echo(f"Round {obs['round_number']} - Roll #{obs['roll_count']}")
+        click.echo("=" * 60)
+
+        # Display last roll
+        if obs["last_roll"]:
+            die1, die2 = obs["last_roll"]
+            dice_sum = die1 + die2
+            click.echo(f"\n🎲 Last Roll: [{die1}] [{die2}] = {dice_sum}")
+
+            # Add commentary about the roll
+            if dice_sum == SEVEN_VALUE:
+                if obs["roll_count"] <= SPECIAL_ROLL_THRESHOLD:
+                    click.echo("   💰 SEVEN! Adds 70 points to the bank!")
+                else:
+                    click.echo("   💥 SEVEN! Round ends - bank is lost!")
+            elif die1 == die2:
+                if obs["roll_count"] <= SPECIAL_ROLL_THRESHOLD:
+                    click.echo(f"   🎯 DOUBLES! Adds {dice_sum} points to the bank")
+                else:
+                    click.echo(f"   🎯 DOUBLES! Bank doubled to {obs['current_bank']}!")
+        else:
+            click.echo("\n🎲 No roll yet this round")
+
+        # Display bank
+        click.echo(f"\n💰 Current Bank: {obs['current_bank']} points")
+
+        # Display player info
+        click.echo(f"\n👤 {self.name} (You)")
+        click.echo(f"   Score: {obs['player_score']} points")
+        click.echo(f"   Can bank: {'Yes ✓' if obs['can_bank'] else 'No (already banked)'}")
+
+        # Display other players
+        if len(obs["all_player_scores"]) > 1:
+            click.echo("\n👥 Other Players:")
+            for pid, score in sorted(obs["all_player_scores"].items()):
+                if pid != obs["player_id"]:
+                    active_marker = "⚡" if pid in obs["active_player_ids"] else "💤"
+                    click.echo(f"   {active_marker} Player {pid + 1}: {score} points")
+
+        # Display active players count
+        active_count = len(obs["active_player_ids"])
+        click.echo(f"\n⚡ Active players in round: {active_count}")
