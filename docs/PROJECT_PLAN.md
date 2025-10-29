@@ -9,18 +9,18 @@ Phases & tasks
 
 Phase 1 — Build the game engine (priority: high)
 - Goal: Implement a correct, well-tested deterministic engine for the dice-based BANK! rules.
-- Status: In Progress (2/4 tasks complete)
+- Status: In Progress (3/4 tasks complete)
 - Tasks & deliverables:
   1. ✅ **COMPLETE** `GameState` dataclasses: `bank/game/state.py` — typed models for game, round, and player state plus `to_dict`/`from_dict` serialization. Includes `PlayerState`, `RoundState`, and `GameState` with full serialization support and helper methods. Comprehensive test suite with 30 tests and 100% coverage in `tests/game/test_state.py`.
   2. ✅ **COMPLETE** Roll & bank mechanics: `bank/game/engine.py` — Complete implementation of 2d6 roll logic, bank accumulation, special first-3-roll rules for sevens (adds 70) and doubles (adds sum), post-3-roll rules (seven ends round, doubles double bank), player banking, round management, and deterministic RNG support. Refactored comprehensive test suite split across 5 files for better organization: `test_engine.py` (13 integration tests), `test_engine_initialization.py` (8 tests), `test_engine_rounds.py` (4 tests), `test_engine_dice.py` (2 tests), `test_engine_banking.py` (10 tests). Total: 37 tests with 90% coverage on engine.py.
-  3. Decision polling loop: engine-level polling loop that notifies active players after each bank change and collects `bank`/`pass` responses (serializable, deterministic tie-breakers).
+  3. ✅ **COMPLETE** Decision polling loop: `bank/game/engine.py` — Implemented configurable agent polling system with two modes: (1) **Simultaneous polling (default)** - all agents receive observations and make decisions simultaneously without seeing each other's choices, more realistic for gameplay and training; (2) **Deterministic polling** - agents polled sequentially in player ID order, useful for specific testing scenarios. Includes `Agent` abstract base class in `bank/agents/base.py`, `Observation` TypedDict with 9 fields, `create_observation(player_id)` method, `poll_decisions()` with `_poll_simultaneous()` and `_poll_deterministic()` implementations. Added test agents in `bank/agents/test_agents.py` (AlwaysPassAgent, AlwaysBankAgent, ThresholdAgent). Comprehensive test suite in `tests/game/test_engine_polling.py` with 14 tests covering both polling modes, observation accuracy, and integration with rolling. Total: 81 tests with 89% engine coverage.
   4. Unit tests: Additional engine tests as needed for edge cases discovered during integration.
 
 Phase 2 — Agent API & baseline agents (priority: high)
 - Goal: Define and implement a stable agent interface and basic agents for testing and demos.
-- Status: Not Started (0/4 tasks complete)
+- Status: Partially Complete (1/4 tasks complete)
 - Tasks & deliverables:
-  1. Agent base API: `bank/agents/base.py` — `Agent` abstract class with `act(observation)` and `reset()`.
+  1. ✅ **COMPLETE** Agent base API: `bank/agents/base.py` — `Agent` abstract class with `act(observation)` and `reset()` methods.
   2. Observation & action schema doc and types in `docs/`.
   3. Baseline agents: `bank/agents/random_agent.py`, `bank/agents/rule_based.py`.
   4. Agent tests: `tests/agents/test_agents.py` to validate integration with the engine.

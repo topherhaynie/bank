@@ -1,19 +1,17 @@
 """BANK! Game Engine - Dice variant.
 
-Core game logic and rules implementation for the         if self.state.game_over:
-            return
-
-        # Determine round number
-        round_number = (
-            1
-            if self.state.current_round is None
-            else self.state.current_round.round_number + 1
-        )ed BANK! game.
+Core game logic and rules implementation for the BANK! dice game.
 """
 
+from __future__ import annotations
+
 import random
+from typing import TYPE_CHECKING
 
 from bank.game.state import GameState, PlayerState, RoundState
+
+if TYPE_CHECKING:
+    from bank.agents.base import Action, Agent, Observation
 
 # Constants for dice game rules
 DICE_FACES = 6
@@ -37,6 +35,8 @@ class BankGame:
         player_names: list[str] | None = None,
         total_rounds: int = 10,
         rng: random.Random | None = None,
+        agents: list[Agent] | None = None,
+        deterministic_polling: bool = False,
     ) -> None:
         """Initialize a new BANK! game.
 
@@ -45,6 +45,11 @@ class BankGame:
             player_names: Optional list of player names
             total_rounds: Number of rounds to play (10, 15, or 20 recommended)
             rng: Optional Random instance for deterministic behavior
+            agents: Optional list of Agent instances for automated decision making
+            deterministic_polling: If True, poll agents sequentially in player ID order.
+                If False (default), poll all agents simultaneously without revealing
+                other players' decisions. Use True for testing when you need
+                reproducible behavior.
 
         """
         if num_players < MIN_PLAYERS:
@@ -57,8 +62,14 @@ class BankGame:
             msg = "Number of names must match number of players"
             raise ValueError(msg)
 
-        self.rng = rng if rng is not None else random.Random()
+        if agents is not None and len(agents) != num_players:
+            msg = "Number of agents must match number of players"
+            raise ValueError(msg)
+
+        self.rng = rng or random.Random()
         self.state = self._initialize_game(player_names, total_rounds)
+        self.agents = agents
+        self.deterministic_polling = deterministic_polling
 
     def _initialize_game(
         self,
@@ -170,6 +181,136 @@ class BankGame:
             self.state.current_round.current_bank += dice_sum
 
         return (die1, die2)
+
+    def create_observation(self, player_id: int) -> Observation:
+        """Create an observation for a specific player.
+
+        Args:
+            player_id: ID of the player to create observation for
+
+        Returns:
+            Observation dictionary for the player
+
+        """
+        if not self.state.current_round:
+            msg = "Cannot create observation: no active round"
+            raise RuntimeError(msg)
+
+        player = self.state.get_player(player_id)
+        if not player:
+            msg = f"Invalid player_id: {player_id}"
+            raise ValueError(msg)
+
+        # Import here to avoid circular dependency at module level
+        from bank.agents.base import Observation
+
+        return Observation(
+            round_number=self.state.current_round.round_number,
+            roll_count=self.state.current_round.roll_count,
+            current_bank=self.state.current_round.current_bank,
+            last_roll=self.state.current_round.last_roll,
+            active_player_ids=self.state.current_round.active_player_ids.copy(),
+            player_id=player_id,
+            player_score=player.score,
+            can_bank=not player.has_banked_this_round,
+            all_player_scores={p.player_id: p.score for p in self.state.players},
+        )
+
+    def poll_decisions(self) -> list[int]:
+        """Poll all active players for banking decisions.
+
+        In async mode (default), all agents are polled simultaneously and don't
+        see each other's decisions until after all decisions are collected.
+
+        In deterministic mode, agents are queried sequentially in player ID order
+        and each banking action is processed immediately before the next agent
+        is queried. This mode is useful for testing.
+
+        Returns:
+            List of player IDs who banked during this poll
+
+        """
+        if not self.state.current_round:
+            return []
+
+        if not self.agents:
+            # No agents configured, return empty list
+            return []
+
+        # Get active players who can still bank
+        active_ids = [
+            pid
+            for pid in self.state.current_round.active_player_ids
+            if not self.state.get_player(pid).has_banked_this_round  # type: ignore[union-attr]
+        ]
+
+        if self.deterministic_polling:
+            # Sequential polling: process each decision immediately
+            return self._poll_deterministic(sorted(active_ids))
+        # Async polling: collect all decisions, then process simultaneously
+        return self._poll_simultaneous(active_ids)
+
+    def _poll_deterministic(self, active_ids: list[int]) -> list[int]:
+        """Poll agents sequentially in order, processing each decision immediately.
+
+        Args:
+            active_ids: List of active player IDs (should be sorted)
+
+        Returns:
+            List of player IDs who banked
+
+        """
+        banked_players = []
+
+        for player_id in active_ids:
+            if player_id >= len(self.agents):  # type: ignore[arg-type]
+                continue  # No agent for this player
+
+            agent = self.agents[player_id]  # type: ignore[index]
+            observation = self.create_observation(player_id)
+            action: Action = agent.act(observation)
+
+            if action == "bank":
+                success = self.player_banks(player_id)
+                if success:
+                    banked_players.append(player_id)
+
+        return banked_players
+
+    def _poll_simultaneous(self, active_ids: list[int]) -> list[int]:
+        """Poll all agents simultaneously and process all decisions together.
+
+        All agents receive observations at the same bank state and make decisions
+        without seeing other players' choices. This is more realistic gameplay.
+
+        Args:
+            active_ids: List of active player IDs
+
+        Returns:
+            List of player IDs who banked
+
+        """
+        # Collect all decisions without processing any yet
+        decisions: dict[int, Action] = {}
+        for player_id in active_ids:
+            if player_id >= len(self.agents):  # type: ignore[arg-type]
+                continue  # No agent for this player
+
+            agent = self.agents[player_id]  # type: ignore[index]
+            observation = self.create_observation(player_id)
+            action: Action = agent.act(observation)
+            decisions[player_id] = action
+
+        # Now process all banking decisions together
+        # Use sorted order for consistent results when multiple players bank
+        banked_players = []
+        for player_id in sorted(decisions.keys()):
+            if decisions[player_id] == "bank":
+                success = self.player_banks(player_id)
+                if success:
+                    banked_players.append(player_id)
+
+        return banked_players
 
     def player_banks(self, player_id: int) -> bool:
         """Process a player banking action.
