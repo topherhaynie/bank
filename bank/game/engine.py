@@ -1,201 +1,322 @@
-"""
-BANK! Game Engine
+"""BANK! Game Engine - Dice variant.
 
-Core game logic and rules implementation.
+Core game logic and rules implementation for the         if self.state.game_over:
+            return
+
+        # Determine round number
+        round_number = (
+            1
+            if self.state.current_round is None
+            else self.state.current_round.round_number + 1
+        )ed BANK! game.
 """
 
 import random
-from typing import List, Optional, Tuple
-from bank.game.state import GameState, PlayerState
+
+from bank.game.state import GameState, PlayerState, RoundState
+
+# Constants for dice game rules
+DICE_FACES = 6
+NUM_DICE = 2
+SEVEN_VALUE = 7
+SEVEN_BONUS_POINTS = 70
+DOUBLE_MULTIPLIER = 2
+MIN_PLAYERS = 2
 
 
 class BankGame:
+    """Main game engine for BANK! dice game.
+
+    This class handles the core game logic, rules, and state management
+    for the dice-based variant of BANK!
     """
-    Main game engine for BANK!
-    
-    This class handles the core game logic, rules, and state management.
-    It can be used by both manual agents and AI training frameworks.
-    """
-    
-    def __init__(self, num_players: int = 2, player_names: Optional[List[str]] = None):
-        """
-        Initialize a new BANK! game.
-        
+
+    def __init__(
+        self,
+        num_players: int = 2,
+        player_names: list[str] | None = None,
+        total_rounds: int = 10,
+        rng: random.Random | None = None,
+    ) -> None:
+        """Initialize a new BANK! game.
+
         Args:
-            num_players: Number of players (2-6 recommended)
+            num_players: Number of players (minimum 2)
             player_names: Optional list of player names
+            total_rounds: Number of rounds to play (10, 15, or 20 recommended)
+            rng: Optional Random instance for deterministic behavior
+
         """
-        if num_players < 2:
-            raise ValueError("Must have at least 2 players")
-        
+        if num_players < MIN_PLAYERS:
+            msg = f"Must have at least {MIN_PLAYERS} players"
+            raise ValueError(msg)
+
         if player_names is None:
-            player_names = [f"Player {i+1}" for i in range(num_players)]
+            player_names = [f"Player {i + 1}" for i in range(num_players)]
         elif len(player_names) != num_players:
-            raise ValueError("Number of names must match number of players")
-        
-        self.state = self._initialize_game(num_players, player_names)
-    
-    def _initialize_game(self, num_players: int, player_names: List[str]) -> GameState:
-        """Initialize a new game state."""
-        # Create players
-        players = [
-            PlayerState(player_id=i, name=name)
-            for i, name in enumerate(player_names)
-        ]
-        
-        # Create and shuffle deck (for basic implementation, using numbers 1-52)
-        deck = list(range(1, 53))
-        random.shuffle(deck)
-        
-        # Deal initial hands (e.g., 5 cards per player)
-        initial_hand_size = 5
-        for player in players:
-            player.hand = [deck.pop() for _ in range(initial_hand_size)]
-        
+            msg = "Number of names must match number of players"
+            raise ValueError(msg)
+
+        self.rng = rng if rng is not None else random.Random()
+        self.state = self._initialize_game(player_names, total_rounds)
+
+    def _initialize_game(
+        self,
+        player_names: list[str],
+        total_rounds: int,
+    ) -> GameState:
+        """Initialize a new game state.
+
+        Args:
+            player_names: List of player names
+            total_rounds: Total number of rounds to play
+
+        Returns:
+            Initialized GameState
+
+        """
+        players = [PlayerState(player_id=i, name=name) for i, name in enumerate(player_names)]
+
         return GameState(
             players=players,
-            deck=deck,
-            discard_pile=[],
-            current_player_idx=0,
-            round_number=1,
+            total_rounds=total_rounds,
+            current_round=None,
             game_over=False,
             winner=None,
         )
-    
-    def get_valid_actions(self, player_idx: Optional[int] = None) -> List[str]:
-        """
-        Get list of valid actions for the current or specified player.
-        
-        Args:
-            player_idx: Player index (defaults to current player)
-            
-        Returns:
-            List of valid action names
-        """
-        if player_idx is None:
-            player_idx = self.state.current_player_idx
-        
-        if self.state.game_over:
-            return []
-        
-        # Basic action set - extend based on actual game rules
-        actions = ["play_card", "draw_card", "bank_card"]
-        
-        player = self.state.players[player_idx]
-        if len(player.hand) == 0:
-            actions.remove("play_card")
-            actions.remove("bank_card")
-        
-        if len(self.state.deck) == 0:
-            actions.remove("draw_card")
-        
-        return actions
-    
-    def take_action(self, action: str, **kwargs) -> bool:
-        """
-        Execute an action for the current player.
-        
-        Args:
-            action: Action name
-            **kwargs: Additional action parameters (e.g., card_idx)
-            
-        Returns:
-            True if action was successful, False otherwise
+
+    def start_new_round(self) -> None:
+        """Start a new round of the game.
+
+        Initializes a new RoundState and resets all players' banking status.
         """
         if self.state.game_over:
-            return False
-        
-        if action not in self.get_valid_actions():
-            return False
-        
-        # Implement basic actions - extend based on actual game rules
-        if action == "play_card":
-            return self._play_card(kwargs.get("card_idx", 0))
-        elif action == "draw_card":
-            return self._draw_card()
-        elif action == "bank_card":
-            return self._bank_card(kwargs.get("card_idx", 0))
-        
-        return False
-    
-    def _play_card(self, card_idx: int) -> bool:
-        """Play a card from hand to discard pile."""
-        player = self.state.current_player
-        if card_idx >= len(player.hand):
-            return False
-        
-        card = player.hand.pop(card_idx)
-        self.state.discard_pile.append(card)
-        self._next_turn()
-        return True
-    
-    def _draw_card(self) -> bool:
-        """Draw a card from the deck."""
-        if len(self.state.deck) == 0:
-            return False
-        
-        player = self.state.current_player
-        card = self.state.deck.pop()
-        player.hand.append(card)
-        self._next_turn()
-        return True
-    
-    def _bank_card(self, card_idx: int) -> bool:
-        """Bank a card from hand."""
-        player = self.state.current_player
-        if card_idx >= len(player.hand):
-            return False
-        
-        card = player.hand.pop(card_idx)
-        player.bank.append(card)
-        player.score += card  # Simple scoring
-        self._next_turn()
-        return True
-    
-    def _next_turn(self) -> None:
-        """Advance to the next player's turn."""
-        self.state.current_player_idx = (
-            (self.state.current_player_idx + 1) % self.state.num_players
+            return
+
+        # Determine round number
+        if self.state.current_round is None:
+            round_number = 1
+        else:
+            round_number = self.state.current_round.round_number + 1
+
+        # Reset all players' banking status
+        for player in self.state.players:
+            player.has_banked_this_round = False
+
+        # Create new round with all players active
+        active_player_ids = {p.player_id for p in self.state.players}
+
+        self.state.current_round = RoundState(
+            round_number=round_number,
+            roll_count=0,
+            current_bank=0,
+            last_roll=None,
+            active_player_ids=active_player_ids,
         )
-        
-        # Check if round is complete
-        if self.state.current_player_idx == 0:
-            self.state.round_number += 1
-        
-        # Check win condition (placeholder - extend based on actual rules)
-        self._check_game_over()
-    
-    def _check_game_over(self) -> None:
-        """Check if the game is over and determine winner."""
-        # Simple win condition: deck is empty and all players have no cards
-        if len(self.state.deck) == 0:
-            all_hands_empty = all(len(p.hand) == 0 for p in self.state.players)
-            if all_hands_empty:
-                self.state.game_over = True
-                # Winner is player with highest score
-                winner_idx = max(
-                    range(len(self.state.players)),
-                    key=lambda i: self.state.players[i].score
-                )
-                self.state.winner = winner_idx
-    
-    def reset(self) -> GameState:
-        """Reset the game to initial state."""
+
+    def roll_dice(self) -> tuple[int, int]:
+        """Roll two six-sided dice.
+
+        Returns:
+            Tuple of (die1, die2) where each die is 1-6
+
+        """
+        die1 = self.rng.randint(1, DICE_FACES)
+        die2 = self.rng.randint(1, DICE_FACES)
+        return (die1, die2)
+
+    def process_roll(self) -> tuple[int, int]:
+        """Process a dice roll and update the game state.
+
+        Returns:
+            The dice roll result (die1, die2)
+
+        """
+        if not self.state.current_round:
+            msg = "Cannot roll dice: no active round"
+            raise RuntimeError(msg)
+
+        if self.state.game_over:
+            msg = "Cannot roll dice: game is over"
+            raise RuntimeError(msg)
+
+        # Roll the dice
+        die1, die2 = self.roll_dice()
+        dice_sum = die1 + die2
+
+        # Update round state
+        self.state.current_round.roll_count += 1
+        self.state.current_round.last_roll = (die1, die2)
+
+        # Determine if we're in first three rolls
+        is_first_three = self.state.current_round.is_first_three_rolls()
+
+        # Check for doubles
+        is_double = die1 == die2
+
+        # Apply bank accumulation rules
+        if dice_sum == SEVEN_VALUE:
+            if is_first_three:
+                # Seven during first 3 rolls: add 70 points
+                self.state.current_round.current_bank += SEVEN_BONUS_POINTS
+            else:
+                # Seven after first 3 rolls: end round, bank is lost
+                self._end_round_on_seven()
+        elif is_double and not is_first_three:
+            # Doubles after first 3 rolls: double the bank
+            self.state.current_round.current_bank *= DOUBLE_MULTIPLIER
+        else:
+            # Normal roll or doubles in first 3 rolls: add sum
+            self.state.current_round.current_bank += dice_sum
+
+        return (die1, die2)
+
+    def player_banks(self, player_id: int) -> bool:
+        """Process a player banking action.
+
+        Args:
+            player_id: ID of the player who wants to bank
+
+        Returns:
+            True if banking was successful, False otherwise
+
+        """
+        if not self.state.current_round:
+            return False
+
+        if self.state.game_over:
+            return False
+
+        # Check if player is in the game
+        player = self.state.get_player(player_id)
+        if not player:
+            return False
+
+        # Check if player is still active in this round
+        if player_id not in self.state.current_round.active_player_ids:
+            return False
+
+        # Check if player has already banked
+        if player.has_banked_this_round:
+            return False
+
+        # Transfer bank to player's score
+        player.score += self.state.current_round.current_bank
+        player.has_banked_this_round = True
+
+        # Remove player from active players
+        self.state.current_round.active_player_ids.discard(player_id)
+
+        # Check if round should end (all players have banked)
+        if len(self.state.current_round.active_player_ids) == 0:
+            self._end_round_all_banked()
+
+        return True
+
+    def _end_round_on_seven(self) -> None:
+        """End the round due to rolling a seven (after first 3 rolls).
+
+        Bank is lost, no points awarded.
+        """
+        if not self.state.current_round:
+            return
+
+        # Bank is already lost (set to 0 implicitly by not awarding points)
+        self.state.current_round.current_bank = 0
+
+        # Check if game is over
+        if self.state.current_round.round_number >= self.state.total_rounds:
+            self._end_game()
+        # Round will end naturally, next round will be started by caller
+
+    def _end_round_all_banked(self) -> None:
+        """End the round because all players have banked."""
+        if not self.state.current_round:
+            return
+
+        # Check if game is over
+        if self.state.current_round.round_number >= self.state.total_rounds:
+            self._end_game()
+
+    def is_round_over(self) -> bool:
+        """Check if the current round is over.
+
+        Returns:
+            True if the round has ended
+
+        """
+        if not self.state.current_round:
+            return True
+
+        # Round is over if all players have banked
+        if len(self.state.current_round.active_player_ids) == 0:
+            return True
+
+        # Round is over if seven was rolled (bank reset to 0) and at least one roll was made
+        return self.state.current_round.current_bank == 0 and self.state.current_round.roll_count > 0
+
+    def _end_game(self) -> None:
+        """End the game and determine the winner."""
+        self.state.game_over = True
+
+        # Find winner (player with highest score)
+        if self.state.players:
+            winner = max(self.state.players, key=lambda p: p.score)
+            self.state.winner = winner.player_id
+
+    def get_active_players(self) -> list[PlayerState]:
+        """Get list of players still active in the current round.
+
+        Returns:
+            List of active PlayerState objects
+
+        """
+        return self.state.get_active_players()
+
+    def reset(self, seed: int | None = None) -> GameState:
+        """Reset the game to initial state.
+
+        Args:
+            seed: Optional seed for RNG
+
+        Returns:
+            The reset GameState
+
+        """
+        if seed is not None:
+            self.rng.seed(seed)
+
         player_names = [p.name for p in self.state.players]
-        num_players = len(player_names)
-        self.state = self._initialize_game(num_players, player_names)
+        total_rounds = self.state.total_rounds
+
+        self.state = self._initialize_game(player_names, total_rounds)
         return self.state
-    
+
     def get_state(self) -> GameState:
-        """Get the current game state."""
+        """Get the current game state.
+
+        Returns:
+            The current GameState
+
+        """
         return self.state
-    
+
     def is_game_over(self) -> bool:
-        """Check if the game is over."""
+        """Check if the game is over.
+
+        Returns:
+            True if the game has ended
+
+        """
         return self.state.game_over
-    
-    def get_winner(self) -> Optional[PlayerState]:
-        """Get the winning player if game is over."""
+
+    def get_winner(self) -> PlayerState | None:
+        """Get the winning player if game is over.
+
+        Returns:
+            The winning PlayerState or None if game isn't over
+
+        """
         if self.state.winner is not None:
-            return self.state.players[self.state.winner]
+            return self.state.get_player(self.state.winner)
         return None

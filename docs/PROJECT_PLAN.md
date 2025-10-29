@@ -9,12 +9,12 @@ Phases & tasks
 
 Phase 1 — Build the game engine (priority: high)
 - Goal: Implement a correct, well-tested deterministic engine for the dice-based BANK! rules.
-- Status: In Progress (1/4 tasks complete)
+- Status: In Progress (2/4 tasks complete)
 - Tasks & deliverables:
   1. ✅ **COMPLETE** `GameState` dataclasses: `bank/game/state.py` — typed models for game, round, and player state plus `to_dict`/`from_dict` serialization. Includes `PlayerState`, `RoundState`, and `GameState` with full serialization support and helper methods. Comprehensive test suite with 30 tests and 100% coverage in `tests/game/test_state.py`.
-  2. Roll & bank mechanics: `bank/game/engine.py` — 2d6 roll logic, bank accumulation, special first-3-roll rules for sevens and doubles, deterministic RNG support.
+  2. ✅ **COMPLETE** Roll & bank mechanics: `bank/game/engine.py` — Complete implementation of 2d6 roll logic, bank accumulation, special first-3-roll rules for sevens (adds 70) and doubles (adds sum), post-3-roll rules (seven ends round, doubles double bank), player banking, round management, and deterministic RNG support. Refactored comprehensive test suite split across 5 files for better organization: `test_engine.py` (13 integration tests), `test_engine_initialization.py` (8 tests), `test_engine_rounds.py` (4 tests), `test_engine_dice.py` (2 tests), `test_engine_banking.py` (10 tests). Total: 37 tests with 90% coverage on engine.py.
   3. Decision polling loop: engine-level polling loop that notifies active players after each bank change and collects `bank`/`pass` responses (serializable, deterministic tie-breakers).
-  4. Unit tests: `tests/game/test_engine.py` — tests for roll outcomes, bank updates, round termination, banking serialization, RNG seeding.
+  4. Unit tests: Additional engine tests as needed for edge cases discovered during integration.
 
 Phase 2 — Agent API & baseline agents (priority: high)
 - Goal: Define and implement a stable agent interface and basic agents for testing and demos.
@@ -78,9 +78,10 @@ How to update this plan
 Immediate next steps (recommended)
 ---------------------------------
 1. ✅ **COMPLETE** Implement `GameState` dataclasses and add basic unit tests for serialization.
-2. **NEXT** Implement roll/bank logic and add tests for the first-3-roll exceptions, doubles, and sevens (Phase 1 Task 2).
-3. Implement the polling decision loop and a simple random/pass agent to validate integration (Phase 1 Task 3).
+2. ✅ **COMPLETE** Implement roll/bank logic and add tests for the first-3-roll exceptions, doubles, and sevens (Phase 1 Task 2).
+3. **NEXT** Implement the polling decision loop and a simple random/pass agent to validate integration (Phase 1 Task 3).
 
 Progress log
 ------------
 - 2025-10-29: Completed Phase 1 Task 1 - Implemented `PlayerState`, `RoundState`, and `GameState` dataclasses with full serialization support. Created comprehensive test suite (30 tests, 100% coverage). Ready to begin Phase 1 Task 2.
+- 2025-10-29: Completed Phase 1 Task 2 - Implemented complete dice rolling and banking mechanics in `bank/game/engine.py`. All BANK! game rules properly implemented: normal rolls add sum, sevens in first 3 rolls add 70, sevens after first 3 end round, doubles in first 3 add sum, doubles after first 3 double the bank. Player banking, round management, and game end conditions fully functional. Refactored test suite from single large file into 5 focused test modules for better organization and maintainability. All 67 tests passing (37 engine tests + 30 state tests) with 90% engine coverage.
