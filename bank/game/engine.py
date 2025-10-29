@@ -461,3 +461,51 @@ class BankGame:
         if self.state.winner is not None:
             return self.state.get_player(self.state.winner)
         return None
+
+    def play_game(self) -> GameState:
+        """Play a complete game from start to finish.
+
+        This method runs a full game by:
+        1. Playing all rounds until total_rounds is reached
+        2. For each round:
+           - Rolling dice and processing bank accumulation
+           - Polling agents for banking decisions
+           - Continuing until round ends (all banked or seven rolled)
+        3. Determining the winner
+
+        Returns:
+            The final GameState after all rounds are complete
+
+        Raises:
+            RuntimeError: If agents are not configured
+
+        """
+        if self.agents is None:
+            msg = "Cannot play game without agents. Provide agents in constructor."
+            raise RuntimeError(msg)
+
+        # Play all rounds
+        while not self.is_game_over():
+            self.play_round()
+
+        return self.state
+
+    def play_round(self) -> None:
+        """Play a single round to completion.
+
+        This method:
+        1. Starts a new round
+        2. Repeatedly rolls dice and polls for banking decisions
+        3. Continues until the round ends (all players banked or seven rolled)
+
+        """
+        self.start_new_round()
+
+        # Keep rolling and polling until round is over
+        while not self.is_round_over():
+            # Roll dice and update bank
+            self.process_roll()
+
+            # Poll agents for banking decisions (if round not ended by seven)
+            if not self.is_round_over():
+                self.poll_decisions()

@@ -18,13 +18,13 @@ Phase 1 — Build the game engine (priority: high)
 
 Phase 2 — Agent API & baseline agents (priority: high)
 - Goal: Define and implement a stable agent interface and basic agents for testing and demos.
-- Status: In Progress (4/5 tasks complete)
+- Status: **COMPLETE** (5/5 tasks complete)
 - Tasks & deliverables:
   1. ✅ **COMPLETE** Agent base API: `bank/agents/base.py` — `Agent` abstract class with `act(observation)` and `reset()` methods.
   2. ✅ **COMPLETE** Observation & action schema doc: `docs/AGENT_API.md` — Comprehensive documentation of `Observation` TypedDict (9 fields with descriptions, valid values, usage examples), `Action` Literal types ("bank"/"pass"), Agent interface implementation guide, common patterns, four complete example agents, testing guidelines, and debugging tips. Serves as the authoritative reference for agent developers.
   3. ✅ **COMPLETE** RandomAgent: `bank/agents/random_agent.py` — Implements `Agent` interface with configurable `bank_probability` (default 0.5), supports seeded RNG for deterministic testing, respects `can_bank` constraint. Useful as baseline and testing tool.
   4. ✅ **COMPLETE** Rule-based agents: `bank/agents/rule_based.py` — Five strategy agents implementing `Agent` interface: (1) `ThresholdAgent` - banks at fixed threshold; (2) `ConservativeAgent` - banks early with low thresholds to avoid risk; (3) `AggressiveAgent` - waits for high values, takes more risks; (4) `SmartAgent` - adaptive strategy considering roll count, active players, recent rolls, and bank value; (5) `AdaptiveAgent` - adjusts risk tolerance based on competitive position (leading/behind). All agents respect `can_bank` and demonstrate different strategic approaches.
-  5. Agent tests: `tests/agents/test_agents.py` to validate integration with the engine.
+  5. ✅ **COMPLETE** Agent integration tests: `tests/agents/test_agents.py` — Comprehensive test suite with 33 tests organized into 6 test classes covering: agent creation and configuration (8 tests), action decision-making with mock observations (10 tests), integration with game engine (5 tests), determinism with seeded RNG (2 tests), edge cases and boundary conditions (6 tests), and reset functionality (3 tests). All tests pass. Coverage: RandomAgent 100%, rule-based agents 93%.
 
 Phase 3 — CLI & examples (priority: medium)
 - Goal: Make the game playable locally and provide examples for inspection and tournaments.
@@ -90,3 +90,5 @@ Progress log
 - 2025-10-29: Completed Phase 2 Task 2 - Created comprehensive `docs/AGENT_API.md` with complete documentation of Observation structure, Action types, implementation guide with best practices, four example agents, and testing guidelines.
 - 2025-10-29: Completed Phase 2 Task 3 - Implemented `RandomAgent` with configurable bank probability, seeded RNG support, and proper Agent interface implementation.
 - 2025-10-29: Completed Phase 2 Task 4 - Implemented five rule-based agents in `bank/agents/rule_based.py`: `ThresholdAgent` (fixed threshold), `ConservativeAgent` (risk-averse), `AggressiveAgent` (high-reward seeking), `SmartAgent` (context-aware with roll/player analysis), and `AdaptiveAgent` (competitive position-based). All agents implement Agent interface and demonstrate diverse strategic approaches.
+- 2025-10-29: Completed Phase 2 Task 5 - Created comprehensive integration test suite for all baseline agents (`tests/agents/test_agents.py`). 33 tests organized into 6 test classes covering agent creation, decision-making, engine integration, determinism, edge cases, and reset functionality. All tests pass with 100% coverage on RandomAgent and 93% on rule-based agents. Also implemented `play_game()` and `play_round()` methods in game engine to support full automated gameplay.
+- 2025-10-29: **Phase 2 COMPLETE** - All agent API and baseline agent tasks finished. Project now has fully functional agent system with comprehensive documentation, multiple strategic implementations, and thorough test coverage.

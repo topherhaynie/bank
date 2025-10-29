@@ -10,6 +10,13 @@ This document describes the coding conventions, patterns, and design decisions u
 - [Testing Conventions](#testing-conventions)
 - [Import Patterns](#import-patterns)
 - [Naming Conventions](#naming-conventions)
+- [Error Handling](#error-handling)
+- [Determinism and Reproducibility](#determinism-and-reproducibility)
+- [Documentation Standards](#documentation-standards)
+- [Common Pitfalls](#common-pitfalls)
+- [Summary Checklist](#summary-checklist)
+- [Engine API Reference](#engine-api-reference)
+- [Working with Agents](#working-with-agents)
 
 ## Project Structure
 
@@ -591,9 +598,189 @@ When adding new code, ensure:
 - ✅ Checking state objects for None before accessing attributes
 - ✅ Using `Action = Literal["bank", "pass"]` for action types
 
+## Engine API Reference
+
+### Key Methods and Attributes
+
+Understanding how to use the game engine correctly:
+
+#### GameState Attributes (Not Methods!)
+
+```python
+# ❌ Wrong - these are attributes, not methods
+if game.state.is_game_over():  # AttributeError!
+    pass
+
+# ✅ Correct - access as attributes
+if game.state.game_over:  # Boolean attribute
+    pass
+
+# Common GameState attributes:
+game.state.game_over          # bool - whether game has ended
+game.state.winner             # int | None - winning player ID
+game.state.total_rounds       # int - total rounds to play
+game.state.players            # list[PlayerState] - all players
+game.state.current_round      # RoundState | None - current round state
+```
+
+#### Accessing Round Information
+
+```python
+# ❌ Wrong - GameState has no round_number attribute
+round_num = game.state.round_number  # AttributeError!
+
+# ✅ Correct - round_number is in current_round
+if game.state.current_round:
+    round_num = game.state.current_round.round_number
+    
+# Common RoundState attributes (when current_round is not None):
+game.state.current_round.round_number      # int - 1-based round number
+game.state.current_round.roll_count        # int - rolls in this round
+game.state.current_round.current_bank      # int - points in bank
+game.state.current_round.last_roll         # tuple[int, int] | None
+game.state.current_round.active_player_ids # set[int] - players not banked
+```
+
+#### Engine Methods for Game Control
+
+```python
+# High-level game control
+game.play_game()      # Play complete game to completion (requires agents)
+game.play_round()     # Play one complete round (requires agents)
+
+# Low-level round control
+game.start_new_round()       # Start a new round
+game.roll_dice()             # Roll dice, returns (die1, die2)
+game.process_roll()          # Roll dice and update bank
+game.poll_decisions()        # Poll agents for banking decisions
+game.player_banks(player_id) # Process a player banking
+
+# State queries
+game.is_round_over()         # Check if current round is complete
+game.is_game_over()          # Check if game has ended (wrapper for state.game_over)
+game.get_winner()            # Get winning PlayerState or None
+game.get_active_players()    # Get list of non-banked players
+
+# State management
+game.reset(seed)             # Reset game to initial state
+game.get_state()             # Get current GameState
+```
+
+#### When to Use play_game() vs Manual Control
+
+```python
+# ✅ Use play_game() for: full automated games, testing, tournaments
+agents = [RandomAgent(0), ThresholdAgent(1, threshold=50)]
+game = BankGame(num_players=2, agents=agents, total_rounds=10)
+game.play_game()  # Runs complete game automatically
+winner = game.get_winner()
+
+# ✅ Use manual control for: step-by-step execution, custom logic, debugging
+game = BankGame(num_players=2, agents=agents)
+game.start_new_round()
+roll = game.roll_dice()  # Returns dice values
+game.process_roll()      # Updates bank based on roll
+game.poll_decisions()    # Asks agents to bank/pass
+# Repeat until game.is_round_over()
+```
+
+#### Agent Requirements
+
+```python
+# ❌ Wrong - play_game() requires agents
+game = BankGame(num_players=2)
+game.play_game()  # RuntimeError: Cannot play game without agents
+
+# ✅ Correct - provide agents
+agents = [ThresholdAgent(0, threshold=50), ThresholdAgent(1, threshold=60)]
+game = BankGame(num_players=2, agents=agents)
+game.play_game()  # Works!
+
+# ✅ Correct - manual control works without agents (for custom logic)
+game = BankGame(num_players=2)
+game.start_new_round()
+roll = game.roll_dice()
+# Custom banking logic here
+```
+
+#### Deterministic Game Execution
+
+```python
+# For reproducible results, seed both RNG and agents
+import random
+
+rng = random.Random(42)
+agents = [
+    RandomAgent(0, seed=100),  # Agent's RNG
+    RandomAgent(1, seed=200),  # Agent's RNG
+]
+game = BankGame(
+    num_players=2,
+    agents=agents,
+    rng=rng,  # Game's RNG for dice
+    deterministic_polling=True,  # Optional: sequential polling
+)
+game.play_game()
+# Results are fully reproducible
+```
+
+## Working with Agents
+
+### Agent Interface Requirements
+
+```python
+# All agents must:
+# 1. Inherit from Agent base class
+# 2. Implement act(observation) -> Action
+# 3. Accept player_id in __init__
+# 4. (Optional) Implement reset() for stateful agents
+
+from bank.agents.base import Agent, Action, Observation
+
+class MyAgent(Agent):
+    def __init__(self, player_id: int, name: str | None = None):
+        super().__init__(player_id, name)
+        # Your initialization here
+    
+    def act(self, observation: Observation) -> Action:
+        # Must return "bank" or "pass"
+        if observation["can_bank"] and observation["current_bank"] >= 50:
+            return "bank"
+        return "pass"
+    
+    def reset(self) -> None:
+        # Optional: reset internal state
+        pass
+```
+
+### Observation Structure Access
+
+```python
+# Observation is a TypedDict with these fields:
+obs = agent.act(observation)
+
+# Always check can_bank before banking
+if observation["can_bank"]:
+    # Can make banking decision
+    pass
+
+# Access game context
+round_num = observation["round_number"]      # 1-based
+roll_count = observation["roll_count"]       # 1-based
+bank = observation["current_bank"]           # Current points
+last_roll = observation["last_roll"]         # (die1, die2) or None
+active = observation["active_player_ids"]    # set[int]
+my_score = observation["player_score"]       # My total score
+all_scores = observation["all_player_scores"] # dict[int, int]
+```
+
 ## Questions or Updates?
 
 If you find patterns not covered here or conventions that should be updated, please:
 1. Update this document
 2. Ensure existing code follows the conventions
 3. Update PROJECT_PLAN.md if it affects implementation strategy
+
+---
+
+**Last Updated**: October 29, 2025 (Phase 2 completion - added Engine API reference section)
