@@ -65,7 +65,7 @@ class RoundState:
     roll_count: int = 0
     current_bank: int = 0
     last_roll: tuple[int, int] | None = None
-    active_player_ids: set = field(default_factory=set)
+    active_player_ids: set[int] = field(default_factory=set)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert round state to a dictionary for serialization."""
