@@ -207,12 +207,24 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Roadmap
 
-- [ ] Implement complete BANK! game rules
+- [ ] Implement complete BANK! game rules (currently has basic framework)
 - [ ] Add more agent types (Monte Carlo, PPO, etc.)
 - [ ] Create a web-based UI
 - [ ] Add multiplayer network support
 - [ ] Tournament mode for agent evaluation
 - [ ] Save/load game states
+
+## Implementation Status
+
+**Current State:**
+- ✅ Complete project structure
+- ✅ Basic game framework (placeholder rules)
+- ✅ Agent infrastructure
+- ✅ CLI interface
+- ✅ DQN training framework
+- ⏳ Full BANK! game rules (ready for implementation)
+
+The project provides a complete framework with simplified game mechanics. The actual BANK! card game rules can be implemented by modifying `bank/game/engine.py` without changing the overall architecture.
 
 ## Contact
 

@@ -27,8 +27,8 @@ class GreedyAgent(BaseAgent):
         # Strategy 1: Bank highest value card if we can
         if "bank_card" in valid_actions and player.hand:
             # Find the highest value card
-            best_idx = max(range(len(player.hand)), key=lambda i: player.hand[i])
-            return ("bank_card", {"card_idx": best_idx})
+            highest_value_idx = max(range(len(player.hand)), key=lambda i: player.hand[i])
+            return ("bank_card", {"card_idx": highest_value_idx})
         
         # Strategy 2: Draw cards if hand is getting low
         if "draw_card" in valid_actions and len(player.hand) < 3:
@@ -36,8 +36,8 @@ class GreedyAgent(BaseAgent):
         
         # Strategy 3: Play lowest value card to keep good cards
         if "play_card" in valid_actions and player.hand:
-            worst_idx = min(range(len(player.hand)), key=lambda i: player.hand[i])
-            return ("play_card", {"card_idx": worst_idx})
+            lowest_value_idx = min(range(len(player.hand)), key=lambda i: player.hand[i])
+            return ("play_card", {"card_idx": lowest_value_idx})
         
         # Fallback: first valid action
         if valid_actions:

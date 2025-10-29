@@ -32,12 +32,12 @@ def run_tournament(agents, num_games=10):
         print(f"Game {game_num + 1}/{num_games}...")
         
         # Create fresh game
-        player_names = [agent.__class__.__name__ for agent in agents]
+        player_names = [getattr(agent, 'name', agent.__class__.__name__) for agent in agents]
         game = BankGame(num_players=len(agents), player_names=player_names)
         
         # Create fresh agent instances for this game
         game_agents = [
-            agent.__class__(player_id=i, name=f"{agent.__class__.__name__}")
+            agent.__class__(player_id=i, name=getattr(agent, 'name', agent.__class__.__name__))
             for i, agent in enumerate(agents)
         ]
         

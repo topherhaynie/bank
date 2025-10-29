@@ -58,7 +58,8 @@ def play_with_analysis(num_turns=10):
         if game.is_game_over():
             break
         
-        current_agent = agents[game.state.current_player_idx]
+        current_player_idx = game.state.current_player_idx
+        current_agent = agents[current_player_idx]
         valid_actions = game.get_valid_actions()
         
         if not valid_actions:

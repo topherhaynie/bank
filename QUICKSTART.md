@@ -150,9 +150,13 @@ cp config.example.json config.json
 
 ## Next Steps
 
-1. Implement actual BANK! game rules in `bank/game/engine.py`
-2. Create more sophisticated agents
+The project includes a basic game framework with simplified mechanics. To use it for the actual BANK! game:
+
+1. **Implement actual BANK! game rules** in `bank/game/engine.py` (current version has placeholder mechanics)
+2. Create more sophisticated agents based on the real rules
 3. Train DQN agents and compare strategies
 4. Build a tournament system to evaluate agents
+
+**Note:** The framework is complete and ready - you just need to add the specific BANK! game rules to the engine.
 
 Enjoy building agents for BANK! 🎮🃏
