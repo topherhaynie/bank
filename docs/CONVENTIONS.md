@@ -157,12 +157,11 @@ active = self.state.get_active_players()
 
 ## Agent Interface
 
-### Two Agent Interfaces
+### Agent Interface
 
-The codebase maintains two agent interfaces:
+The codebase uses a single agent interface for the dice-based BANK! game:
 
-1. **`Agent`** - For the dice-based BANK! game (current implementation)
-2. **`BaseAgent`** - Legacy interface for card-based game (backward compatibility)
+**`Agent`** - Protocol for all agents in the dice game (current implementation)
 
 ### Agent Implementation Pattern
 

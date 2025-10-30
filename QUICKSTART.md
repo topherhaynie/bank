@@ -6,7 +6,7 @@
 # Basic installation
 pip install -e .
 
-# With ML support for DQN training
+# With ML support for DQN training (in development)
 pip install -e ".[ml]"
 
 # With development tools
@@ -17,18 +17,41 @@ pip install -e ".[dev]"
 
 ### Interactive Play (Human vs AI)
 ```bash
-bank play --players 2 --human 1 --rule-based 1
+# 2 players: you vs a smart AI
+bank play --players 2 --human 1 --smart 1
+
+# 4 players: you vs 3 different AI strategies
+bank play --players 4 --human 1 --conservative 1 --aggressive 1 --smart 1
 ```
 
 ### Demo (AI vs AI)
 ```bash
+# Watch 4 AI agents compete
 bank demo
+
+# Custom demo with more rounds
+bank demo --rounds 5
+```
+
+### Tournament Mode
+```bash
+# Run 100 games and see which strategy wins most
+bank tournament --games 100
+
+# Longer tournament with more rounds per game
+bank tournament --games 50 --rounds 10
 ```
 
 ### Custom Game Setup
 ```bash
-# 3 players: 1 human, 1 random bot, 1 rule-based bot
-bank play --players 3 --human 1 --random 1 --rule-based 1
+# 3 players with specific configurations
+bank play --players 3 --human 1 --adaptive 1 --random 1 --rounds 7
+
+# Reproducible game with seed
+bank play --players 2 --human 1 --smart 1 --seed 42
+
+# Fast-paced game with no delays
+bank play --players 4 --aggressive 4 --delay 0
 ```
 
 ## Training AI Agents
@@ -48,44 +71,86 @@ bank-train --episodes 5000 --load-path models/my_agent.pth --save-path models/my
 
 ### Simple Rule-Based Agent
 ```python
-from bank.agents.base import BaseAgent
-from bank.game.state import GameState
+from bank.agents.base import Agent, Action, Observation
 
-class MyAgent(BaseAgent):
-    def select_action(self, game_state, valid_actions):
-        # Your strategy here
-        player = game_state.players[self.player_id]
-        
-        # Example: Always bank high-value cards
-        if "bank_card" in valid_actions and player.hand:
-            for idx, card in enumerate(player.hand):
-                if card > 40:
-                    return ("bank_card", {"card_idx": idx})
-        
-        # Default action
-        if valid_actions:
-            return (valid_actions[0], {})
-        return ("pass", {})
+class MyAgent:
+    def __init__(self, player_id: int, name: str):
+        self.player_id = player_id
+        self.name = name
+    
+    def act(self, observation: Observation) -> Action:
+        """Decide whether to 'bank' or 'pass'."""
+        # Example: Bank if we have 60+ points or after 3 rolls
+        if observation["current_bank"] >= 60:
+            return "bank"
+        if observation["roll_count"] >= 3:
+            return "bank"
+        return "pass"
+    
+    def reset(self) -> None:
+        """Reset agent state for a new game."""
+        pass
 ```
 
-### Using Your Agent
+### Using Your Agent in a Game
 ```python
 from bank.game.engine import BankGame
-from bank.cli.game_runner import GameRunner
+from bank.agents.random_agent import RandomAgent
 
 # Create game
-game = BankGame(num_players=2, player_names=["MyBot", "RandomBot"])
+game = BankGame(
+    num_players=3,
+    player_names=["MyBot", "RandomBot", "AnotherBot"],
+    total_rounds=5
+)
 
 # Create agents
-from bank.agents.random_agent import RandomAgent
 agents = [
     MyAgent(player_id=0, name="MyBot"),
-    RandomAgent(player_id=1, name="RandomBot")
+    RandomAgent(player_id=1, name="RandomBot", seed=42),
+    MyAgent(player_id=2, name="AnotherBot")
 ]
 
-# Run game
-runner = GameRunner(game, agents)
-runner.run()
+# Set agents and play
+game.agents = agents
+game.play_game()
+
+# Check results
+for player in game.state.players:
+    print(f"{player.name}: {player.score} points")
+```
+
+### Advanced: Position-Aware Agent
+```python
+class SmartAgent:
+    def __init__(self, player_id: int, name: str):
+        self.player_id = player_id
+        self.name = name
+    
+    def act(self, observation: Observation) -> Action:
+        """Adaptive strategy based on game position."""
+        bank = observation["current_bank"]
+        my_score = observation["player_score"]
+        all_scores = observation["all_player_scores"]
+        roll_count = observation["roll_count"]
+        
+        # Get max opponent score
+        max_opponent = max(s for pid, s in all_scores.items() 
+                          if pid != self.player_id)
+        
+        # If we're behind, take more risks
+        if my_score < max_opponent:
+            threshold = 80
+        else:
+            threshold = 50
+        
+        # Bank if we meet threshold or too many rolls
+        if bank >= threshold or roll_count >= 4:
+            return "bank"
+        return "pass"
+    
+    def reset(self) -> None:
+        pass
 ```
 
 ## Running Tests
@@ -137,26 +202,36 @@ cp config.example.json config.json
 
 ## Tips
 
-1. **Testing your agent**: Use `bank demo` with your custom agent to see it in action
-2. **Debugging**: Add print statements in your agent's `select_action` method
-3. **Training**: Start with fewer episodes (100-500) to test, then scale up
-4. **Agents**: Study `rule_based.py` for inspiration on manual agent strategies
+1. **Testing your agent**: Use the examples in `examples/` as templates
+2. **Debugging**: Add print statements in your agent's `act` method to see decisions
+3. **Strategy development**: Run tournaments with `bank tournament` to compare agents
+4. **Observation details**: Check `docs/AGENT_API.md` for complete observation documentation
 
 ## Common Issues
 
-**"Gymnasium not found"**: Install ML dependencies with `pip install -e ".[ml]"`
-**"PyTorch not found"**: Same as above - use the ML extras
 **"Command not found"**: Make sure you installed with `pip install -e .`
+**"ModuleNotFoundError: No module named 'bank'"**: Install the package or activate your venv
+**"Gymnasium not found"**: ML features are in development, install with `pip install -e ".[ml]"` when available
+
+## Available Agent Types
+
+The game includes 6 built-in agent strategies:
+
+1. **RandomAgent**: Random decisions (baseline)
+2. **ThresholdAgent**: Banks at a fixed point value
+3. **ConservativeAgent**: Risk-averse, banks early
+4. **AggressiveAgent**: Takes chances for higher scores
+5. **SmartAgent**: Context-aware with adaptive thresholds
+6. **AdaptiveAgent**: Adjusts based on competitive position
+
+Study these in `bank/agents/rule_based.py` for inspiration!
 
 ## Next Steps
 
-The project includes a basic game framework with simplified mechanics. To use it for the actual BANK! game:
+1. **Play interactively**: Get familiar with the game using `bank play`
+2. **Study examples**: Check `examples/` directory for custom agent patterns
+3. **Build your agent**: Start with a simple threshold strategy
+4. **Test with tournaments**: Run `bank tournament` to evaluate performance
+5. **Iterate**: Refine your strategy based on results
 
-1. **Implement actual BANK! game rules** in `bank/game/engine.py` (current version has placeholder mechanics)
-2. Create more sophisticated agents based on the real rules
-3. Train DQN agents and compare strategies
-4. Build a tournament system to evaluate agents
-
-**Note:** The framework is complete and ready - you just need to add the specific BANK! game rules to the engine.
-
-Enjoy building agents for BANK! 🎮🃏
+Enjoy building agents for BANK! �

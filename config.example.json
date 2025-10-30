@@ -1,8 +1,7 @@
 {
   "game": {
-    "num_players": 2,
-    "initial_hand_size": 5,
-    "deck_size": 52
+    "num_players": 4,
+    "total_rounds": 5
   },
   "training": {
     "episodes": 1000,
@@ -15,6 +14,7 @@
     "memory_size": 10000
   },
   "cli": {
-    "ai_delay": 0.5
+    "ai_delay": 1.0,
+    "human_timeout": 30
   }
 }

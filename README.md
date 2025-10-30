@@ -1,17 +1,17 @@
-# BANK! 🎮🃏
+# BANK! �
 
-A modular Python game environment for the card game BANK! with support for manual agents, AI training (DQN), and CLI gameplay.
+A modular Python game environment for the dice game BANK! with support for rule-based agents, AI training (DQN), and CLI gameplay.
 
 ## Features
 
-- 🎯 **Game Engine**: Complete BANK! game implementation with state management
+- 🎯 **Game Engine**: Complete BANK! dice game implementation with state management
 - 🤖 **Agent Support**: 
-  - Manual/programmed agents (random, rule-based)
-  - Deep Q-Network (DQN) reinforcement learning agents
+  - Rule-based agents (Random, Threshold, Conservative, Aggressive, Smart, Adaptive)
+  - Deep Q-Network (DQN) reinforcement learning agents (in development)
   - Easy-to-extend base agent interface
-- 🖥️ **CLI Interface**: Interactive command-line gameplay
-- 🧠 **Training Framework**: Gymnasium-compatible environment for RL training
-- 🧪 **Testing**: Comprehensive test suite with pytest
+- 🖥️ **CLI Interface**: Interactive command-line gameplay with human and AI players
+- 🧠 **Training Framework**: Gymnasium-compatible environment for RL training (in development)
+- 🧪 **Testing**: Comprehensive test suite with 114 tests and 89% coverage
 
 ## Project Structure
 
@@ -75,60 +75,76 @@ pip install -e ".[dev]"
 ### Play Against AI
 
 ```bash
-# Play as a human against a rule-based AI
-bank play --players 2 --human 1 --rule-based 1
+# Play as a human against AI agents
+bank play --players 3 --human 1 --smart 1 --aggressive 1
 
 # Watch AI agents play against each other
 bank demo
-```
 
-### Train a DQN Agent
-
-```bash
-# Train a DQN agent (requires ML dependencies)
-bank-train --episodes 5000 --save-path models/my_agent.pth
+# Run a tournament with statistics
+bank tournament --games 100
 ```
 
 ### Create Custom Agents
 
 ```python
-from bank.agents.base import BaseAgent
-from bank.game.state import GameState
+from bank.agents.base import Agent, Action, Observation
 
-class MyCustomAgent(BaseAgent):
-    def select_action(self, game_state: GameState, valid_actions: list):
+class MyCustomAgent:
+    def __init__(self, player_id: int, name: str):
+        self.player_id = player_id
+        self.name = name
+    
+    def act(self, observation: Observation) -> Action:
+        """Decide whether to 'bank' or 'pass' based on observation."""
         # Implement your strategy here
-        action = valid_actions[0]
-        params = {}
-        return (action, params)
+        if observation["current_bank"] >= 80:
+            return "bank"
+        return "pass"
+    
+    def reset(self) -> None:
+        """Reset agent state for a new game."""
+        pass
 ```
 
 ## CLI Commands
 
 ### `bank play`
 
-Start an interactive game.
+Start an interactive game with human and/or AI players.
 
 Options:
-- `--players, -p`: Number of players (default: 2)
+- `--players, -p`: Number of players (2-6, default: 4)
 - `--human, -h`: Number of human players (default: 1)
-- `--random, -r`: Number of random AI players (default: 0)
-- `--rule-based, -rb`: Number of rule-based AI players (default: 0)
+- `--random`: Number of random AI players
+- `--threshold <N>`: Number of threshold-based AI players
+- `--conservative`: Number of conservative AI players
+- `--aggressive`: Number of aggressive AI players
+- `--smart`: Number of smart AI players
+- `--adaptive`: Number of adaptive AI players
+- `--rounds, -r`: Number of rounds to play (default: 5)
 - `--seed, -s`: Random seed for reproducibility
+- `--timeout, -t`: Decision timeout in seconds for humans (default: 30)
+- `--delay, -d`: Delay between AI actions in seconds (default: 1.0)
 
 ### `bank demo`
 
-Run a demonstration game with AI agents.
-
-### `bank-train`
-
-Train a DQN agent.
+Run a demonstration game with 4 AI agents.
 
 Options:
-- `--episodes, -e`: Number of training episodes (default: 1000)
-- `--players, -p`: Number of players (default: 2)
-- `--save-path, -s`: Path to save the trained model
-- `--load-path, -l`: Path to load an existing model
+- `--rounds, -r`: Number of rounds (default: 3)
+- `--delay, -d`: Delay between actions in seconds (default: 1.0)
+- `--seed, -s`: Random seed
+
+### `bank tournament`
+
+Run a tournament with multiple games and collect statistics.
+
+Options:
+- `--games, -g`: Number of games to play (default: 10)
+- `--players, -p`: Number of players per game (default: 4)
+- `--rounds, -r`: Number of rounds per game (default: 5)
+- `--seed, -s`: Random seed
 
 ## Development
 
@@ -174,20 +190,25 @@ See `config.example.json` for available options.
 ### Game Engine
 
 The game engine (`bank.game.engine.BankGame`) manages:
-- Game state and rules
-- Turn management
-- Action validation
-- Win conditions
+- Dice rolling (2d6) with special rules for doubles and sevens
+- Banking mechanics and round progression
+- Player state tracking and decision polling
+- Game flow and win conditions
 
 ### Agents
 
-All agents inherit from `BaseAgent` and implement:
-- `select_action()`: Choose an action given game state
-- Lifecycle callbacks: `on_game_start()`, `on_turn_start()`, etc.
+All agents implement the `Agent` protocol:
+- `act(observation: Observation) -> Action`: Choose "bank" or "pass"
+- `reset() -> None`: Reset state for a new game
 
-### Training Environment
+The `Observation` TypedDict provides complete game state information:
+- Round number, roll count, current bank value
+- Last dice roll, active players
+- Player scores and banking status
 
-The `BankEnv` class wraps the game as a Gymnasium environment, enabling:
+### Training Environment (In Development)
+
+The `BankEnv` class will wrap the game as a Gymnasium environment, enabling:
 - Standard RL training loops
 - Integration with libraries like Stable-Baselines3
 - Custom reward shaping
@@ -207,24 +228,30 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Roadmap
 
-- [ ] Implement complete BANK! game rules (currently has basic framework)
-- [ ] Add more agent types (Monte Carlo, PPO, etc.)
-- [ ] Create a web-based UI
-- [ ] Add multiplayer network support
-- [ ] Tournament mode for agent evaluation
-- [ ] Save/load game states
+- [x] Implement complete BANK! dice game rules
+- [x] Add multiple agent types (Random, Threshold, Conservative, Aggressive, Smart, Adaptive)
+- [x] CLI interface with human play and tournaments
+- [x] Comprehensive test suite (114 tests, 89% coverage)
+- [ ] DQN reinforcement learning agent
+- [ ] Advanced agent types (Monte Carlo, PPO, etc.)
+- [ ] Web-based UI
+- [ ] Multiplayer network support
+- [ ] Enhanced tournament and evaluation tools
 
 ## Implementation Status
 
 **Current State:**
-- ✅ Complete project structure
-- ✅ Basic game framework (placeholder rules)
-- ✅ Agent infrastructure
-- ✅ CLI interface
-- ✅ DQN training framework
-- ⏳ Full BANK! game rules (ready for implementation)
+- ✅ Complete dice game implementation
+- ✅ Full game engine with all BANK! rules
+- ✅ Six rule-based agent strategies
+- ✅ Interactive CLI with human and AI players
+- ✅ Tournament mode with statistics
+- ✅ Programmatic examples for custom agents
+- ✅ Comprehensive test coverage
+- ⏳ DQN training framework (Phase 4)
+- ⏳ Replay/inspection helpers (Phase 3 Task 3)
 
-The project provides a complete framework with simplified game mechanics. The actual BANK! card game rules can be implemented by modifying `bank/game/engine.py` without changing the overall architecture.
+The project is production-ready for playing BANK! and developing custom rule-based agents. The RL training framework is the next major development phase.
 
 ## Contact
 

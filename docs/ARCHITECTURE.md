@@ -38,21 +38,21 @@ Data flow
 
 Agent contract (minimal)
 ------------------------
-Agents should implement a simple, predictable API to allow interchangeability between human, scripted, and ML players.
+Agents implement a simple, predictable API to allow interchangeability between human, scripted, and ML players.
 
-- class Agent:
-  - def __init__(self, name: str, seed: Optional[int] = None)
-  - def act(self, observation: dict, action_mask: List[bool]) -> int
-    - observation: dictionary of relevant public state and private view for that agent
-    - action_mask: boolean list or mask indicating legal actions indexed by action id
-    - returns: integer action id
-  - def reset(self): (optional) called at start of new episode
+Current implementation:
+- class Agent (Protocol):
+  - def __init__(self, player_id: int, name: str)
+  - def act(self, observation: Observation) -> Action
+    - observation: TypedDict with game state (round_number, roll_count, current_bank, last_roll, active_player_ids, player_id, player_score, can_bank, all_player_scores)
+    - returns: Action literal ("bank" or "pass")
+  - def reset(self) -> None: (optional) called at start of new game
 
 Observation & action design
 ---------------------------
-- Observation should be a compact, JSON-serializable structure that captures the agent's legal knowledge (hand, visible piles, turn metadata).
-- For ML agents, `bank.training.environment` will provide a flattened or tensorized observation and an action index mapping.
-- The Game must provide an action_mask so learning agents can respect legality.
+- Observation is a TypedDict providing complete game state information in a structured, type-safe format.
+- For ML agents, `bank.training.environment` will provide a flattened or tensorized observation.
+- Actions are simple literals ("bank" or "pass") validated by the observation's `can_bank` field.
 
 Testing and determinism
 -----------------------
