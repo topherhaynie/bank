@@ -100,13 +100,69 @@ class HumanPlayer(Agent):
         if observation["can_bank"]:
             actions.insert(0, "bank")  # Bank first if available
 
-        # Display options
-        click.echo("\n" + "=" * 50)
+        # Display options with game state and stats
+        click.echo("\n" + "=" * 60)
         click.echo(f"{self.name}'s Decision")
-        click.echo("=" * 50)
+        click.echo("=" * 60)
+
+        # Game context
+        click.echo(f"\n🎮 Round {observation['round_number']} | Roll #{observation['roll_count']}")
+
+        # Last roll info
+        if observation["last_roll"]:
+            die1, die2 = observation["last_roll"]
+            dice_sum = die1 + die2
+            click.echo(f"🎲 Last Roll: [{die1}] [{die2}] = {dice_sum}")
+
+            # Add roll commentary
+            if dice_sum == SEVEN_VALUE:
+                if observation["roll_count"] <= SPECIAL_ROLL_THRESHOLD:
+                    click.echo("   💰 SEVEN! Added 70 points to bank")
+                else:
+                    click.echo("   💥 SEVEN would end round - bank lost!")
+            elif die1 == die2:
+                if observation["roll_count"] <= SPECIAL_ROLL_THRESHOLD:
+                    click.echo(f"   🎯 DOUBLES! Added {dice_sum} points")
+                else:
+                    click.echo("   🎯 DOUBLES! Bank doubled!")
+        else:
+            click.echo("🎲 No roll yet this round")
+
+        # Bank value
+        click.echo(f"\n💰 Bank: {observation['current_bank']} points")
+        active_count = len(observation["active_player_ids"])
+        click.echo(f"⚡ Active players: {active_count}")
+
+        # Show all players with their status
+        click.echo("\n📊 Current Standings:")
+        for pid, score in sorted(
+            observation["all_player_scores"].items(),
+            key=lambda x: x[1],
+            reverse=True,
+        ):
+            is_you = pid == observation["player_id"]
+            is_active = pid in observation["active_player_ids"]
+
+            # Status indicator
+            if not is_active:
+                status = "💰 BANKED"
+            elif is_you:
+                status = "👉 YOUR TURN"
+            else:
+                status = "⚡ ACTIVE"
+
+            player_label = f"Player {pid + 1}" if not is_you else self.name
+            click.echo(f"   {player_label:<20} {score:>4} pts  {status}")
+
         click.echo("\nAvailable actions:")
         for idx, action in enumerate(actions, 1):
-            click.echo(f"  {idx}. {action.upper()}")
+            if action == "bank":
+                new_score = observation["player_score"] + observation["current_bank"]
+                click.echo(
+                    f"  {idx}. {action.upper()} (take {observation['current_bank']} → total: {new_score} pts)",
+                )
+            else:
+                click.echo(f"  {idx}. {action.upper()} (stay in round, risk losing bank)")
 
         # Get selection with optional timeout
         try:
@@ -129,6 +185,9 @@ class HumanPlayer(Agent):
         Returns:
             1-indexed choice number
 
+        Raises:
+            click.Abort: If user presses Ctrl+C to exit
+
         """
         while True:
             try:
@@ -136,7 +195,10 @@ class HumanPlayer(Agent):
                     f"\nSelect action (1-{num_actions})",
                     type=click.IntRange(1, num_actions),
                 )
-            except (ValueError, click.Abort):
+            except click.Abort:
+                # User pressed Ctrl+C - let it propagate to exit the program
+                raise
+            except ValueError:
                 click.echo("Invalid choice. Please try again.")
 
     def _display_observation(self, obs: Observation) -> None:
