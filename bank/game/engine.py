@@ -12,6 +12,7 @@ from bank.game.state import GameState, PlayerState, RoundState
 
 if TYPE_CHECKING:
     from bank.agents.base import Action, Agent, Observation
+    from bank.replay.recorder import GameRecorder
 
 # Constants for dice game rules
 DICE_FACES = 6
@@ -37,6 +38,7 @@ class BankGame:
         rng: random.Random | None = None,
         agents: list[Agent] | None = None,
         deterministic_polling: bool = False,
+        recorder: GameRecorder | None = None,
     ) -> None:
         """Initialize a new BANK! game.
 
@@ -50,6 +52,7 @@ class BankGame:
                 If False (default), poll all agents simultaneously without revealing
                 other players' decisions. Use True for testing when you need
                 reproducible behavior.
+            recorder: Optional GameRecorder instance for recording game events
 
         """
         if num_players < MIN_PLAYERS:
@@ -70,6 +73,17 @@ class BankGame:
         self.state = self._initialize_game(player_names, total_rounds)
         self.agents = agents
         self.deterministic_polling = deterministic_polling
+        self.recorder = recorder
+
+        # Record game start if recorder is provided
+        if self.recorder:
+            seed = getattr(self.rng, "_seed", None) if hasattr(self.rng, "_seed") else None
+            self.recorder.start_game(
+                num_players=num_players,
+                player_names=player_names,
+                total_rounds=total_rounds,
+                seed=seed,
+            )
 
     def _initialize_game(
         self,
@@ -125,6 +139,10 @@ class BankGame:
             active_player_ids=active_player_ids,
         )
 
+        # Record round start if recorder is provided
+        if self.recorder:
+            self.recorder.record_round_start(round_number)
+
     def roll_dice(self) -> tuple[int, int]:
         """Roll two six-sided dice.
 
@@ -155,6 +173,9 @@ class BankGame:
         die1, die2 = self.roll_dice()
         dice_sum = die1 + die2
 
+        # Store bank value before applying roll effects
+        bank_before = self.state.current_round.current_bank
+
         # Update round state
         self.state.current_round.roll_count += 1
         self.state.current_round.last_roll = (die1, die2)
@@ -179,6 +200,16 @@ class BankGame:
         else:
             # Normal roll or doubles in first 3 rolls: add sum
             self.state.current_round.current_bank += dice_sum
+
+        # Record roll if recorder is provided
+        if self.recorder:
+            self.recorder.record_roll(
+                round_number=self.state.current_round.round_number,
+                roll_count=self.state.current_round.roll_count,
+                dice=(die1, die2),
+                bank_before=bank_before,
+                bank_after=self.state.current_round.current_bank,
+            )
 
         return (die1, die2)
 
@@ -341,9 +372,23 @@ class BankGame:
         if player.has_banked_this_round:
             return False
 
+        # Store score before banking
+        score_before = player.score
+
         # Transfer bank to player's score
         player.score += self.state.current_round.current_bank
         player.has_banked_this_round = True
+
+        # Record banking action if recorder is provided
+        if self.recorder:
+            self.recorder.record_bank(
+                round_number=self.state.current_round.round_number,
+                player_id=player_id,
+                player_name=player.name,
+                amount=self.state.current_round.current_bank,
+                score_before=score_before,
+                score_after=player.score,
+            )
 
         # Remove player from active players
         self.state.current_round.active_player_ids.discard(player_id)
@@ -363,7 +408,18 @@ class BankGame:
             return
 
         # Bank is already lost (set to 0 implicitly by not awarding points)
+        bank_amount = self.state.current_round.current_bank
         self.state.current_round.current_bank = 0
+
+        # Record round end if recorder is provided
+        if self.recorder:
+            player_scores = {p.player_id: p.score for p in self.state.players}
+            self.recorder.record_round_end(
+                round_number=self.state.current_round.round_number,
+                reason="seven_rolled",
+                final_bank=bank_amount,
+                player_scores=player_scores,
+            )
 
         # Check if game is over
         if self.state.current_round.round_number >= self.state.total_rounds:
@@ -374,6 +430,16 @@ class BankGame:
         """End the round because all players have banked."""
         if not self.state.current_round:
             return
+
+        # Record round end if recorder is provided
+        if self.recorder:
+            player_scores = {p.player_id: p.score for p in self.state.players}
+            self.recorder.record_round_end(
+                round_number=self.state.current_round.round_number,
+                reason="all_banked",
+                final_bank=self.state.current_round.current_bank,
+                player_scores=player_scores,
+            )
 
         # Check if game is over
         if self.state.current_round.round_number >= self.state.total_rounds:
@@ -401,9 +467,24 @@ class BankGame:
         self.state.game_over = True
 
         # Find winner (player with highest score)
+        winner_ids = []
+        winner_names = []
         if self.state.players:
-            winner = max(self.state.players, key=lambda p: p.score)
-            self.state.winner = winner.player_id
+            max_score = max(p.score for p in self.state.players)
+            winners = [p for p in self.state.players if p.score == max_score]
+            winner_ids = [w.player_id for w in winners]
+            winner_names = [w.name for w in winners]
+            # Set first winner as the winner (legacy single-winner field)
+            self.state.winner = winners[0].player_id
+
+        # Record game end if recorder is provided
+        if self.recorder:
+            final_scores = {p.player_id: p.score for p in self.state.players}
+            self.recorder.record_game_end(
+                final_scores=final_scores,
+                winner_ids=winner_ids,
+                winner_names=winner_names,
+            )
 
     def get_active_players(self) -> list[PlayerState]:
         """Get list of players still active in the current round.

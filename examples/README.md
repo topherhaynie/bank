@@ -41,6 +41,17 @@ Shows how to run batch tournaments and collect statistics:
 python examples/tournament.py
 ```
 
+### `replay_demo.py`
+Demonstrates game replay recording and analysis:
+- How to record games using GameRecorder
+- Saving and loading replays from JSON files
+- Multiple replay viewing modes (summary, play-by-play, round analysis)
+- Player statistics extraction (banking patterns, decision metrics)
+
+```bash
+python examples/replay_demo.py
+```
+
 ## Available Agent Types
 
 The framework includes 6 built-in agent types:
@@ -117,7 +128,54 @@ pip install -e .
 python examples/simple_agent.py
 python examples/inspect_game.py
 python examples/tournament.py
+python examples/replay_demo.py
 ```
+
+## Replay System
+
+The replay system allows you to record games for later analysis:
+
+### Recording Games
+
+```python
+from bank.replay.recorder import GameRecorder, save_replay
+from bank.game.engine import BankGame
+
+# Create recorder
+recorder = GameRecorder()
+
+# Create game with recorder attached
+game = BankGame(num_players=4, agents=your_agents, recorder=recorder)
+game.play_game()
+
+# Save replay to file
+save_replay(recorder, "game_001.json")
+```
+
+### Viewing Replays
+
+```python
+from bank.replay.recorder import load_replay
+from bank.replay.viewer import ReplayViewer
+
+# Load replay
+replay_data = load_replay("game_001.json")
+viewer = ReplayViewer(replay_data)
+
+# Display summary
+viewer.print_summary()
+
+# Show play-by-play narrative
+viewer.print_play_by_play()
+
+# Analyze specific round
+viewer.analyze_round(3)
+
+# Get player statistics
+viewer.print_player_stats(player_id=0)
+```
+
+Replays are saved as human-readable JSON files containing all game events with timestamps.
 
 ## CLI vs Programmatic Usage
 
