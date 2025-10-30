@@ -723,6 +723,418 @@ game.play_game()
 # Results are fully reproducible
 ```
 
+## Phase 4: Training and RL Conventions
+
+### Observation Flattening
+
+The `Observation` TypedDict is designed for human readability. For neural network input, flatten it to a fixed-size vector:
+
+```python
+def flatten_observation(obs: Observation) -> np.ndarray:
+    """Convert Observation TypedDict to flat 14-feature vector.
+    
+    Features (all normalized to [0, 1]):
+    - Game progress: round_number, roll_count
+    - Bank state: current_bank
+    - Dice: die1, die2
+    - Binary flags: is_first_three, can_bank, is_leading
+    - Player state: player_score
+    - Competition: avg_opponent, max_opponent, min_opponent
+    - Strategic: score_gap
+    """
+    # Extract dice
+    last_roll = obs["last_roll"]
+    die1 = last_roll[0] / 6.0 if last_roll else 0.0
+    die2 = last_roll[1] / 6.0 if last_roll else 0.0
+    
+    # Extract player info
+    player_score = obs["player_score"]
+    all_scores = obs["all_player_scores"]
+    opponent_scores = [s for pid, s in all_scores.items() if pid != obs["player_id"]]
+    
+    # Build feature vector
+    return np.array([
+        obs["round_number"] / obs.get("total_rounds", 10),  # Normalized progress
+        obs["roll_count"] / 10.0,          # Typical max ~10 rolls
+        obs["current_bank"] / 500.0,       # Normalize bank
+        die1, die2,                        # Dice values
+        1.0 if obs["roll_count"] <= 3 else 0.0,  # First three rolls flag
+        1.0 if obs["can_bank"] else 0.0,  # Can bank flag
+        1.0 if player_score == max(all_scores.values()) else 0.0,  # Leading flag
+        player_score / 1000.0,             # Normalize score
+        np.mean(opponent_scores) / 1000.0 if opponent_scores else 0.0,
+        max(opponent_scores) / 1000.0 if opponent_scores else 0.0,
+        min(opponent_scores) / 1000.0 if opponent_scores else 0.0,
+        (player_score - max(opponent_scores)) / 1000.0 if opponent_scores else 0.0,
+    ], dtype=np.float32)
+```
+
+**Key Points:**
+- Always normalize features to [0, 1] or [-1, 1] range
+- Handle edge cases (None values, empty lists)
+- Use consistent normalization constants (e.g., 1000 for scores)
+- Document each feature clearly
+- Return float32 for efficiency
+
+### Reward Engineering
+
+Training RL agents requires careful reward design. The key challenge is **variance** - dice games have high randomness.
+
+#### Tournament-Based Rewards (Recommended)
+
+```python
+# Problem: Single-game rewards are too noisy
+# Solution: Accumulate results over N games, assign one reward
+
+class TournamentReward:
+    def __init__(self, tournament_size: int = 5):
+        self.tournament_size = tournament_size
+        self.results = []  # [(rank, win_flag), ...]
+    
+    def add_game(self, rank: int, num_players: int, won: bool):
+        """Store one game result."""
+        self.results.append((rank, won))
+    
+    def calculate_reward(self) -> float:
+        """Calculate reward after tournament completes."""
+        if len(self.results) < self.tournament_size:
+            return 0.0  # Tournament not complete
+        
+        # Win rate component (0-1)
+        wins = sum(1 for _, won in self.results if won)
+        win_rate = wins / self.tournament_size
+        
+        # Average rank component (0-1, higher rank = better)
+        ranks = [r for r, _ in self.results]
+        avg_rank = np.mean(ranks)
+        num_players = 4  # Typical game size
+        rank_score = (num_players - avg_rank) / (num_players - 1)
+        
+        # Consistency bonus (penalize high variance)
+        rank_std = np.std(ranks)
+        consistency = 1.0 / (1.0 + rank_std)  # 0-1
+        
+        # Combined reward
+        reward = (win_rate * 2.0) + rank_score + (consistency * 0.5)
+        
+        # Reset for next tournament
+        self.results = []
+        return reward
+```
+
+**Why Tournament Rewards?**
+- Reduces variance from lucky/unlucky dice rolls
+- Focuses on consistent strategy, not single-game outcomes
+- Allows RL agent to learn long-term patterns
+- Configurable tournament size (3-10 games typical)
+
+#### Alternative Reward Schemes
+
+```python
+# Sparse Reward (simple but slow learning)
+reward = 1.0 if won else 0.0
+
+# Dense Reward (faster learning, but can encourage bad habits)
+reward = (final_score / 1000.0) + (1.0 if won else 0.0)
+
+# Score-Differential Reward (competitive focus)
+reward = (my_score - avg_opponent_score) / 1000.0
+```
+
+**Recommendation**: Start with tournament-based rewards, tune tournament size through experimentation.
+
+### Advanced Opponent Strategies
+
+Training requires challenging opponents. Implement these strategies:
+
+#### 1. LeaderOnlyAgent
+```python
+# Strategy: Only bank when it makes you the leader
+if can_bank:
+    my_potential = my_score + current_bank
+    max_opponent = max(other_scores)
+    if my_potential > max_opponent:
+        return "bank"
+return "pass"
+```
+
+#### 2. LeaderPlusOneAgent
+```python
+# Strategy: Leader strategy + wait one extra roll for value
+if can_bank and roll_count > 1:  # Wait at least 2 rolls
+    my_potential = my_score + current_bank
+    max_opponent = max(other_scores)
+    if my_potential > max_opponent:
+        return "bank"
+return "pass"
+```
+
+#### 3. LeechAgent
+```python
+# Strategy: Watch when others bank, then wait one more roll
+if can_bank:
+    initial_active = num_players
+    current_active = len(active_player_ids)
+    banked_count = initial_active - current_active
+    
+    # If others are banking, we can be slightly more aggressive
+    if banked_count > 0 and roll_count >= 2:
+        return "bank"
+return "pass"
+```
+
+#### 4. RankBasedAgent
+```python
+# Strategy: Adjust threshold based on current rank
+if can_bank:
+    my_rank = get_current_rank(all_scores, my_score)
+    # Lower rank = more aggressive
+    threshold = 100 - (my_rank * 20)  # Last=100, First=40
+    if current_bank >= threshold:
+        return "bank"
+return "pass"
+```
+
+**Training Mix**: Use 40% advanced, 30% intermediate (Smart/Aggressive), 30% basic (Random/Conservative) opponents.
+
+### Checkpointing and Interruption
+
+Training should support graceful interruption and resume at any time.
+
+#### Checkpoint Structure
+
+```python
+checkpoint = {
+    "episode": 5000,
+    "agent": {
+        "network_state": model.state_dict(),
+        "target_network_state": target_model.state_dict(),
+        "epsilon": 0.15,
+    },
+    "optimizer_state": optimizer.state_dict(),
+    "replay_buffer": {
+        "transitions": buffer.transitions,  # List of (s, a, r, s', done)
+        "position": buffer.position,
+        "size": len(buffer),
+    },
+    "training_stats": {
+        "total_episodes": 5000,
+        "total_steps": 125000,
+        "avg_reward": 2.34,
+        "win_rate": 0.42,
+        # ... other metrics
+    },
+    "config": {
+        "tournament_size": 5,
+        "reward_weights": {"win": 2.0, "rank": 1.0},
+        # ... hyperparameters
+    },
+    "timestamp": "2025-10-30T14:30:00",
+}
+
+torch.save(checkpoint, "checkpoints/episode_5000.pth")
+```
+
+#### Signal Handling
+
+```python
+import signal
+import sys
+
+class TrainingSession:
+    def __init__(self):
+        self.interrupted = False
+        signal.signal(signal.SIGINT, self._signal_handler)
+    
+    def _signal_handler(self, signum, frame):
+        """Handle Ctrl+C gracefully."""
+        print("\n[!] Interrupt received. Saving checkpoint...")
+        self.interrupted = True
+    
+    def train(self):
+        episode = 0
+        while episode < max_episodes and not self.interrupted:
+            # Training loop
+            episode += 1
+            
+            # Periodic checkpoints
+            if episode % 1000 == 0:
+                self.save_checkpoint(episode)
+        
+        # Final checkpoint on interruption
+        if self.interrupted:
+            self.save_checkpoint(episode)
+            print(f"[✓] Training interrupted. Checkpoint saved at episode {episode}")
+```
+
+#### Resume Training
+
+```python
+def resume_training(checkpoint_path: str):
+    """Resume training from checkpoint."""
+    checkpoint = torch.load(checkpoint_path)
+    
+    # Restore model
+    model.load_state_dict(checkpoint["agent"]["network_state"])
+    target_model.load_state_dict(checkpoint["agent"]["target_network_state"])
+    
+    # Restore optimizer
+    optimizer.load_state_dict(checkpoint["optimizer_state"])
+    
+    # Restore replay buffer (critical!)
+    buffer.transitions = checkpoint["replay_buffer"]["transitions"]
+    buffer.position = checkpoint["replay_buffer"]["position"]
+    
+    # Restore training state
+    epsilon = checkpoint["agent"]["epsilon"]
+    start_episode = checkpoint["episode"] + 1
+    
+    print(f"[✓] Resumed from episode {start_episode}")
+    return start_episode, epsilon
+```
+
+**Key Points:**
+- Save **full** state: network, optimizer, buffer, epsilon, stats
+- Handle Ctrl+C with signal handlers
+- Save periodic checkpoints (every 1000 episodes)
+- Always save on interruption
+- Resume command: `--resume checkpoints/latest.pth`
+
+### Gymnasium Environment Integration
+
+Use standard Gymnasium interface for compatibility with RL libraries:
+
+```python
+import gymnasium as gym
+
+class BankEnv(gym.Env):
+    """Gymnasium wrapper for BANK! game."""
+    
+    def __init__(self, num_opponents: int = 3, opponent_agents: list[Agent] | None = None):
+        super().__init__()
+        
+        # Action space: 0=pass, 1=bank
+        self.action_space = gym.spaces.Discrete(2)
+        
+        # Observation space: 14 features
+        self.observation_space = gym.spaces.Box(
+            low=0.0, high=1.0, shape=(14,), dtype=np.float32
+        )
+        
+        self.num_opponents = num_opponents
+        self.opponent_agents = opponent_agents or self._default_opponents()
+        
+        # Tournament tracking
+        self.tournament_size = 5
+        self.tournament_results = []
+    
+    def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
+        """Reset environment for new episode."""
+        super().reset(seed=seed)
+        
+        # Create new game
+        agents = [None] + self.opponent_agents  # None = learning agent
+        self.game = BankGame(
+            num_players=1 + self.num_opponents,
+            agents=agents,
+            rng=random.Random(seed) if seed else None,
+        )
+        
+        # Start first round
+        self.game.start_new_round()
+        obs = self.game.create_observation(player_id=0)
+        
+        return flatten_observation(obs), {}
+    
+    def step(self, action: int) -> tuple[np.ndarray, float, bool, bool, dict]:
+        """Execute one action."""
+        # Convert action: 0=pass, 1=bank
+        agent_action = "bank" if action == 1 else "pass"
+        
+        # Execute action in game (implementation depends on game API)
+        # ... game logic ...
+        
+        # Get next observation
+        if not self.game.is_game_over():
+            obs = self.game.create_observation(player_id=0)
+            next_obs = flatten_observation(obs)
+        else:
+            next_obs = np.zeros(14, dtype=np.float32)  # Terminal state
+        
+        # Calculate reward (tournament-based)
+        reward = 0.0
+        terminated = self.game.is_game_over()
+        if terminated:
+            # Store game result
+            self.tournament_results.append((rank, won))
+            
+            # Calculate reward if tournament complete
+            if len(self.tournament_results) >= self.tournament_size:
+                reward = self._calculate_tournament_reward()
+                self.tournament_results = []
+        
+        return next_obs, reward, terminated, False, {}
+```
+
+**Important:**
+- Action space must match neural network output (2 actions)
+- Observation space must match flattened observation (14 features)
+- Handle tournament logic in `step()` method
+- Return terminal observation as zero vector (or last valid observation)
+
+### Configuration Management
+
+Use JSON config files for all hyperparameters:
+
+```python
+# config/training_config.json
+{
+    "environment": {
+        "num_opponents": 3,
+        "tournament_size": 5,
+        "opponent_mix": {
+            "basic": 0.3,      # Random, Conservative
+            "intermediate": 0.3, // Aggressive, Smart
+            "advanced": 0.4     # Leader, Leech, RankBased
+        }
+    },
+    "agent": {
+        "network": {
+            "hidden_sizes": [128, 128],
+            "activation": "relu"
+        },
+        "learning_rate": 0.0001,
+        "gamma": 0.99,
+        "epsilon_start": 1.0,
+        "epsilon_end": 0.01,
+        "epsilon_decay": 0.995,
+        "target_update_freq": 1000
+    },
+    "training": {
+        "total_episodes": 100000,
+        "batch_size": 64,
+        "replay_buffer_size": 100000,
+        "checkpoint_freq": 1000,
+        "eval_freq": 5000
+    },
+    "reward": {
+        "type": "tournament",
+        "tournament_size": 5,
+        "weights": {
+            "win_rate": 2.0,
+            "rank": 1.0,
+            "consistency": 0.5
+        }
+    }
+}
+```
+
+**Benefits:**
+- Easy experimentation (just edit JSON)
+- Version control for hyperparameters
+- Resume with same/different config
+- Checkpoint includes config for reproducibility
+
 ## Working with Agents
 
 ### Agent Interface Requirements
@@ -782,4 +1194,4 @@ If you find patterns not covered here or conventions that should be updated, ple
 
 ---
 
-**Last Updated**: October 29, 2025 (Phase 2 completion - added Engine API reference section)
+**Last Updated**: October 30, 2025 (Phase 4 planning - added Training and RL conventions)
