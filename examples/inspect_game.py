@@ -1,93 +1,216 @@
-"""
-Game State Inspection Example
+"""Game State Inspection Example.
 
-This example shows how to inspect and analyze game state during play.
+This example shows how to inspect and analyze game state during a BANK! dice game.
+Demonstrates programmatic game execution, state access, and statistical analysis.
 """
 
-from bank.game.engine import BankGame
 from bank.agents.random_agent import RandomAgent
+from bank.agents.rule_based import SmartAgent, ThresholdAgent
+from bank.game.engine import BankGame
 
 
-def analyze_game_state(game):
-    """Print detailed analysis of current game state."""
+def analyze_game_state(game: BankGame) -> None:
+    """Print detailed analysis of current game state.
+
+    Args:
+        game: The game instance to analyze
+
+    """
     state = game.state
-    
+
     print("\n" + "=" * 60)
     print("Game State Analysis")
     print("=" * 60)
-    
-    print(f"\nRound: {state.round_number}")
-    print(f"Current Player: {state.current_player.name}")
-    print(f"Deck Size: {len(state.deck)} cards")
-    print(f"Discard Pile: {len(state.discard_pile)} cards")
-    
+
+    # Overall game info
+    print(
+        f"\nGame Progress: Round {state.current_round.round_number if state.current_round else 0}/{state.total_rounds}"
+    )
+    print(f"Game Over: {state.game_over}")
+
+    # Current round info
+    if state.current_round:
+        round_state = state.current_round
+        print("\nCurrent Round:")
+        print(f"  Roll Count: {round_state.roll_count}")
+        print(f"  Bank Value: {round_state.current_bank} points")
+        print(f"  Active Players: {len(round_state.active_player_ids)}/{state.num_players}")
+
+        if round_state.last_roll:
+            die1, die2 = round_state.last_roll
+            print(f"  Last Roll: [{die1}] [{die2}] = {die1 + die2}")
+
+            # Analyze roll significance
+            if die1 + die2 == 7:  # noqa: PLR2004
+                if round_state.roll_count <= 3:  # noqa: PLR2004
+                    print("    → SEVEN! Added 70 points")
+                else:
+                    print("    → SEVEN! Round ends")
+            elif die1 == die2:
+                if round_state.roll_count <= 3:  # noqa: PLR2004
+                    print(f"    → DOUBLES! Added {die1 + die2} points")
+                else:
+                    print("    → DOUBLES! Bank doubled")
+
+    # Player details
     print("\nPlayer Details:")
-    for player in state.players:
-        print(f"\n  {player.name}:")
-        print(f"    Hand: {sorted(player.hand)}")
-        print(f"    Bank: {sorted(player.bank)}")
-        print(f"    Score: {player.score}")
-        
-        # Calculate some statistics
-        if player.hand:
-            avg_hand = sum(player.hand) / len(player.hand)
-            print(f"    Average hand value: {avg_hand:.1f}")
-        
-        if player.bank:
-            avg_bank = sum(player.bank) / len(player.bank)
-            print(f"    Average banked value: {avg_bank:.1f}")
+    sorted_players = sorted(state.players, key=lambda p: p.score, reverse=True)
+
+    for rank, player in enumerate(sorted_players, 1):
+        print(f"\n  {rank}. {player.name}:")
+        print(f"     Score: {player.score} points")
+        print(f"     Banked this round: {'Yes' if player.has_banked_this_round else 'No'}")
+
+        if state.current_round:
+            is_active = player.player_id in state.current_round.active_player_ids
+            print(f"     Status: {'⚡ Active' if is_active else '💤 Out'}")
+
+    # Calculate statistics
+    if state.players:
+        avg_score = sum(p.score for p in state.players) / len(state.players)
+        max_score = max(p.score for p in state.players)
+        min_score = min(p.score for p in state.players)
+        print("\nScore Statistics:")
+        print(f"  Average: {avg_score:.1f} points")
+        print(f"  Highest: {max_score} points")
+        print(f"  Lowest: {min_score} points")
+        print(f"  Spread: {max_score - min_score} points")
 
 
-def play_with_analysis(num_turns=10):
-    """Play a game with periodic state analysis."""
+def play_with_inspection(num_rounds: int = 3) -> None:
+    """Play a game with periodic state inspection.
+
+    Args:
+        num_rounds: Number of rounds to play
+
+    """
     print("=" * 60)
     print("Game State Inspection Example")
     print("=" * 60)
-    
-    # Create game
-    game = BankGame(num_players=2, player_names=["Alice", "Bob"])
-    
-    # Create agents
+
+    # Create game with 3 players
+    player_names = ["Alice", "Bob", "Charlie"]
+    game = BankGame(
+        num_players=3,
+        player_names=player_names,
+        total_rounds=num_rounds,
+        rng=None,
+    )
+
+    # Create agents with different strategies
     agents = [
         RandomAgent(player_id=0, name="Alice", seed=42),
-        RandomAgent(player_id=1, name="Bob", seed=43)
+        ThresholdAgent(player_id=1, name="Bob", threshold=60),
+        SmartAgent(player_id=2, name="Charlie"),
     ]
-    
-    # Play turns and analyze
-    for turn in range(num_turns):
-        if game.is_game_over():
+
+    game.agents = agents
+
+    print(f"\nPlaying {num_rounds}-round game with inspection after each round...")
+
+    # Play round by round with analysis
+    for round_num in range(1, num_rounds + 1):
+        print(f"\n{'=' * 60}")
+        print(f"STARTING ROUND {round_num}")
+        print(f"{'=' * 60}")
+
+        # Play one round
+        game.start_new_round()
+        game.play_round()
+
+        # Analyze state after round
+        analyze_game_state(game)
+
+        # Check if game ended early
+        if game.state.game_over:
+            print("\n⚠️  Game ended early!")
             break
-        
-        current_player_idx = game.state.current_player_idx
-        current_agent = agents[current_player_idx]
-        valid_actions = game.get_valid_actions()
-        
-        if not valid_actions:
-            break
-        
-        # Select and perform action
-        action, params = current_agent.select_action(game.state, valid_actions)
-        print(f"\nTurn {turn + 1}: {current_agent.name} performs {action} {params}")
-        game.take_action(action, **params)
-        
-        # Analyze state every 5 turns
-        if (turn + 1) % 5 == 0:
-            analyze_game_state(game)
-    
+
     # Final analysis
     print("\n" + "=" * 60)
-    print("FINAL STATE")
+    print("FINAL GAME STATE")
+    print("=" * 60)
     analyze_game_state(game)
-    
-    if game.is_game_over():
-        winner = game.get_winner()
-        if winner:
-            print(f"\n🏆 Winner: {winner.name} with {winner.score} points!")
+
+    # Determine winner
+    if game.state.game_over:
+        max_score = max(p.score for p in game.state.players)
+        winners = [p for p in game.state.players if p.score == max_score]
+
+        if len(winners) == 1:
+            print(f"\n🏆 Winner: {winners[0].name} with {winners[0].score} points!")
+        else:
+            winner_names = ", ".join(w.name for w in winners)
+            print(f"\n🤝 Tie between: {winner_names} with {max_score} points each!")
 
 
-def main():
-    """Run the example."""
-    play_with_analysis(num_turns=20)
+def inspect_single_round() -> None:
+    """Demonstrate detailed inspection of a single round.
+
+    This shows how to access all the information available during a round.
+    """
+    print("\n" + "=" * 60)
+    print("Single Round Deep Inspection")
+    print("=" * 60)
+
+    game = BankGame(num_players=2, player_names=["Player 1", "Player 2"], total_rounds=1)
+
+    # Create simple agents
+    agents = [
+        ThresholdAgent(player_id=0, name="Player 1", threshold=50),
+        ThresholdAgent(player_id=1, name="Player 2", threshold=80),
+    ]
+    game.agents = agents
+
+    # Start a round
+    game.start_new_round()
+
+    print("\nInspecting round structure...")
+    print(f"Round number: {game.state.current_round.round_number}")
+    print(f"Initial bank: {game.state.current_round.current_bank}")
+    print(f"Initial active players: {game.state.current_round.active_player_ids}")
+    print(f"Roll count: {game.state.current_round.roll_count}")
+
+    # Simulate a few rolls manually to show inspection
+    for i in range(3):
+        print(f"\n--- Roll {i + 1} ---")
+        game.roll_dice()
+
+        if game.state.current_round.last_roll:
+            die1, die2 = game.state.current_round.last_roll
+            print(f"Dice: [{die1}] [{die2}]")
+            print(f"Bank now: {game.state.current_round.current_bank}")
+            print(f"Active players: {len(game.state.current_round.active_player_ids)}")
+
+        # Poll for decisions
+        banked = game.poll_decisions()
+        if banked:
+            print(f"Players who banked: {banked}")
+
+        if game.is_round_over():
+            print("Round ended!")
+            break
+
+    print("\n" + "=" * 60)
+
+
+def main() -> None:
+    """Run all inspection examples."""
+    # Example 1: Play full game with periodic inspection
+    play_with_inspection(num_rounds=3)
+
+    # Example 2: Deep dive into single round
+    inspect_single_round()
+
+    print("\n" + "=" * 60)
+    print("Inspection complete!")
+    print("=" * 60)
+    print("\nKey Inspection Points:")
+    print("  - GameState: Overall game info (players, rounds, game_over)")
+    print("  - RoundState: Current round info (rolls, bank, active players)")
+    print("  - PlayerState: Individual player data (score, has_banked)")
+    print("  - Use analyze_game_state() as template for custom analysis")
+    print()
 
 
 if __name__ == "__main__":
