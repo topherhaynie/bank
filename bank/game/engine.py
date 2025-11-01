@@ -328,6 +328,9 @@ class BankGame:
                 continue  # No agent for this player
 
             agent = self.agents[player_id]  # type: ignore[index]
+            if agent is None:
+                continue  # Agent slot is None (externally controlled)
+
             observation = self.create_observation(player_id)
             action: Action = agent.act(observation)
             decisions[player_id] = action
