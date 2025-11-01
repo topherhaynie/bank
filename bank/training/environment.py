@@ -612,16 +612,12 @@ class BankEnv:
 
         # Consistency bonus: reward low variance in ranks
         consistency_bonus = (
-            self.tournament_consistency_weight
-            if rank_std < self.tournament_consistency_threshold
-            else 0.0
+            self.tournament_consistency_weight if rank_std < self.tournament_consistency_threshold else 0.0
         )
 
         # Compute weighted reward
         reward = (
-            self.tournament_win_weight * win_rate
-            + self.tournament_rank_weight * normalized_rank
-            + consistency_bonus
+            self.tournament_win_weight * win_rate + self.tournament_rank_weight * normalized_rank + consistency_bonus
         )
 
         # Reset tournament tracking
