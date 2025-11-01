@@ -7,6 +7,15 @@ import random
 
 import click
 
+from bank.agents.advanced_agents import (
+    LeaderPlusFiveAgent,
+    LeaderPlusFourAgent,
+    LeaderPlusOneAgent,
+    LeaderPlusSevenAgent,
+    LeaderPlusSixAgent,
+    LeaderPlusThreeAgent,
+    LeaderPlusTwoAgent,
+)
 from bank.agents.random_agent import RandomAgent
 from bank.agents.rule_based import (
     AdaptiveAgent,
@@ -30,7 +39,7 @@ def main() -> None:
 
 
 @main.command()
-@click.option("--players", "-p", default=2, help="Number of players (2-6)")
+@click.option("--players", "-p", default=2, help="Number of players (minimum 2)")
 @click.option("--rounds", "-r", default=10, help="Number of rounds (recommended: 10, 15, or 20)")
 @click.option("--human", "-h", default=1, help="Number of human players")
 @click.option("--random", default=0, help="Number of random AI players")
@@ -39,6 +48,13 @@ def main() -> None:
 @click.option("--aggressive", "-a", default=0, help="Number of aggressive AI players")
 @click.option("--smart", "-s", default=0, help="Number of smart AI players")
 @click.option("--adaptive", default=0, help="Number of adaptive AI players")
+@click.option("--leaderplus1", default=0, help="Number of LeaderPlusOne agents")
+@click.option("--leaderplus2", default=0, help="Number of LeaderPlusTwo agents")
+@click.option("--leaderplus3", default=0, help="Number of LeaderPlusThree agents")
+@click.option("--leaderplus4", default=0, help="Number of LeaderPlusFour agents")
+@click.option("--leaderplus5", default=0, help="Number of LeaderPlusFive agents")
+@click.option("--leaderplus6", default=0, help="Number of LeaderPlusSix agents")
+@click.option("--leaderplus7", default=0, help="Number of LeaderPlusSeven agents")
 @click.option("--seed", type=int, default=None, help="Random seed for reproducibility")
 @click.option("--timeout", type=int, default=None, help="Timeout for human input (seconds)")
 @click.option("--delay", type=float, default=0.5, help="Delay between displays (seconds)")
@@ -52,13 +68,35 @@ def play(  # noqa: PLR0913
     aggressive: int,
     smart: int,
     adaptive: int,
+    leaderplus1: int,
+    leaderplus2: int,
+    leaderplus3: int,
+    leaderplus4: int,
+    leaderplus5: int,
+    leaderplus6: int,
+    leaderplus7: int,
     seed: int | None,
     timeout: int | None,
     delay: float,
 ) -> None:
     """Start a new game of BANK!"""
     # Validate agent counts
-    total_agents = human + random + threshold + conservative + aggressive + smart + adaptive
+    total_agents = (
+        human
+        + random
+        + threshold
+        + conservative
+        + aggressive
+        + smart
+        + adaptive
+        + leaderplus1
+        + leaderplus2
+        + leaderplus3
+        + leaderplus4
+        + leaderplus5
+        + leaderplus6
+        + leaderplus7
+    )
     if total_agents != players:
         click.echo(
             f"Error: Number of agents ({total_agents}) must equal number of players ({players})",
@@ -120,6 +158,29 @@ def play(  # noqa: PLR0913
     # Add adaptive agents
     for i in range(adaptive):
         agents.append(AdaptiveAgent(player_id=agent_id, name=f"AdaptiveBot {i + 1}"))
+        agent_id += 1
+
+    # Add LeaderPlusN agents
+    for i in range(leaderplus1):
+        agents.append(LeaderPlusOneAgent(player_id=agent_id, name=f"LeaderPlus1-{i + 1}"))
+        agent_id += 1
+    for i in range(leaderplus2):
+        agents.append(LeaderPlusTwoAgent(player_id=agent_id, name=f"LeaderPlus2-{i + 1}"))
+        agent_id += 1
+    for i in range(leaderplus3):
+        agents.append(LeaderPlusThreeAgent(player_id=agent_id, name=f"LeaderPlus3-{i + 1}"))
+        agent_id += 1
+    for i in range(leaderplus4):
+        agents.append(LeaderPlusFourAgent(player_id=agent_id, name=f"LeaderPlus4-{i + 1}"))
+        agent_id += 1
+    for i in range(leaderplus5):
+        agents.append(LeaderPlusFiveAgent(player_id=agent_id, name=f"LeaderPlus5-{i + 1}"))
+        agent_id += 1
+    for i in range(leaderplus6):
+        agents.append(LeaderPlusSixAgent(player_id=agent_id, name=f"LeaderPlus6-{i + 1}"))
+        agent_id += 1
+    for i in range(leaderplus7):
+        agents.append(LeaderPlusSevenAgent(player_id=agent_id, name=f"LeaderPlus7-{i + 1}"))
         agent_id += 1
 
     # Create and run game

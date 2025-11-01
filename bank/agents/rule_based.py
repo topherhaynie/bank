@@ -219,6 +219,10 @@ class SmartAgent(Agent):
         num_active = len(observation["active_player_ids"])
         last_roll = observation["last_roll"]
 
+        # Never bank in the first 3 rounds (safe rounds)
+        if roll_count <= 3:
+            return "pass"
+
         # Never bank tiny amounts
         if bank < 15:
             return "pass"
@@ -227,14 +231,9 @@ class SmartAgent(Agent):
         if num_active == 1 and bank >= 20:
             return "bank"
 
-        # Calculate dynamic threshold based on context
         threshold = self.base_threshold
-
-        # First 3 rolls: be greedy (sevens add 70, can't lose)
-        if roll_count <= 3:
-            threshold = int(threshold * 1.5)
         # Rolls 4-6: moderate caution
-        elif roll_count <= 6:
+        if roll_count <= 6:
             pass  # threshold remains at base value
         # Roll 7+: very risky, be conservative
         else:
@@ -244,18 +243,15 @@ class SmartAgent(Agent):
         if last_roll and roll_count > 3:
             die1, die2 = last_roll
             if die1 == die2 and bank >= threshold * 0.7:
-                # Just doubled! Bank immediately if decent value
                 return "bank"
 
         # React to dangerous rolls (near seven)
         if last_roll:
             die1, die2 = last_roll
             roll_sum = die1 + die2
-            # If we're seeing 6s or 8s, seven is likely soon
             if roll_sum in (6, 8) and roll_count > 3:
                 threshold = int(threshold * 0.8)
 
-        # Standard threshold check
         if bank >= threshold:
             return "bank"
 
